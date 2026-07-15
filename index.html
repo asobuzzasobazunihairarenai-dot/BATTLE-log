@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>7 SHADES OF S:EVEN 戦績管理システム</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- html2canvas for PNG Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    /* アバター右下の三角インジケーター用クリップパス */
+    .triangle-indicator {
+      clip-path: polygon(100% 0, 0 100%, 100% 100%);
+    }
+    /* スムーズなトランジション */
+    .fade-in {
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen">
+
+  <!-- ヘッダー兼ナビゲーション -->
+  <header class="bg-slate-900 text-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 p-2.5 rounded-lg shadow-inner">
+          <i class="fa-solid fa-trophy text-2xl text-yellow-300"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-wider">7 SHADES OF S:EVEN</h1>
+          <p class="text-xs text-slate-400">テストプレイ戦績管理システム (Prototype)</p>
+        </div>
+      </div>
+      
+      <!-- 権限シミュレーター (体験用) -->
+      <div class="flex items-center bg-slate-800 p-1.5 rounded-full border border-slate-700">
+        <span class="text-xs px-3 text-slate-300 font-medium">現在の操作ロール:</span>
+        <button id="role-tester-btn" onclick="switchRole('tester')" class="text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 bg-indigo-600 text-white shadow-sm">
+          <i class="fa-solid fa-user-ninja mr-1"></i> 一般テスター
+        </button>
+        <button id="role-admin-btn" onclick="switchRole('admin')" class="text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 text-slate-400 hover:text-white ml-1">
+          <i class="fa-solid fa-user-shield mr-1"></i> 管理者
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-4 space-y-6">
+
+    <!-- クイックステータス通知 -->
+    <div id="status-toast" class="hidden bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-md flex justify-between items-center fade-in">
+      <span id="status-toast-text" class="text-sm font-semibold"></span>
+      <button onclick="closeToast()" class="text-white hover:text-gray-200"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- 管理者用の「承認待ち」お知らせバナー -->
+    <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-sm fade-in">
+      <div class="flex items-center gap-3">
+        <div class="bg-amber-100 text-amber-800 p-2.5 rounded-full">
+          <i class="fa-solid fa-bell-ring fa-bounce"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-amber-900">未承認の戦績申請があります</h3>
+          <p class="text-xs text-amber-700">プレイヤーから申請された戦績が <span id="pending-count" class="font-bold underline text-sm">0</span> 件あります。確認・承認を行ってください。</p>
+        </div>
+      </div>
+      <button onclick="scrollToSection('admin-section')" class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2 px-4 rounded-lg shadow transition">
+        承認画面へ移動する <i class="fa-solid fa-arrow-down ml-1"></i>
+      </button>
+    </div>
+
+    <!-- 画面レイアウト: メイングリッド -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- 左側: コントロールエリア (戦績追加・設定など) -->
+      <div class="lg:col-span-4 space-y-6">
+
+        <!-- ① 戦績の追加/申請フォーム -->
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 space-y-4">
+          <div class="flex justify-between items-center border-b pb-3 border-gray-100">
+            <h2 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-square-plus text-indigo-600"></i>
+              <span id="form-title">戦績の申請</span>
+            </h2>
+            <span id="form-badge" class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              一般申請用
+            </span>
+          </div>
+
+          <!-- 日付選択 -->
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">プレイ日</label>
+            <input type="date" id="match-date" class="w-full text-sm bg-gray-50 border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition">
+          </div>
+
+          <!-- メンバーコピペ・クイック再現ツール -->
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1.5">メンバーのクイック復元</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" onclick="copyLastMatch()" class="text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-2 rounded-lg border border-slate-200 transition text-center truncate">
+                <i class="fa-solid fa-clock-rotate-left mr-1"></i> 直近の試合を再現
+              </button>
+              <button type="button" onclick="openHistoryCopyModal()" class="text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-2 rounded-lg border border-slate-200 transition text-center truncate">
+                <i class="fa-solid fa-list-check mr-1"></i> 履歴から選択
+              </button>
+            </div>
+          </div>
+
+          <!-- 参加メンバーの選択 -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-xs font-bold text-gray-500">参加メンバー選択</label>
+              <!-- ソート & 検索 -->
+              <div class="flex gap-1.5">
+                <button type="button" onclick="toggleMemberSort('playCount')" id="sort-playcount-btn" class="text-[10px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
+                  よく遊ぶ順
+                </button>
+                <button type="button" onclick="toggleMemberSort('alphabetical')" id="sort-alpha-btn" class="text-[10px] font-bold px-2 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200">
+                  五十音順
+                </button>
+              </div>
+            </div>
+
+            <!-- プレイヤー検索窓 -->
+            <input type="text" id="member-search" oninput="filterMembers()" placeholder="メンバーを検索..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 mb-2 outline-none focus:border-indigo-400">
+
+            <!-- メンバー選択グリッド (スクロールエリア) -->
+            <div id="members-selection-container" class="border border-gray-100 rounded-xl max-h-52 overflow-y-auto p-2 bg-gray-50/50 space-y-1">
+              <!-- JSで動的に構築 -->
+            </div>
+          </div>
+
+          <!-- 勝者の選択 -->
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1.5">勝者 (1名) を選択</label>
+            <div id="winner-selection-container" class="border border-indigo-50 rounded-xl p-2.5 bg-indigo-50/20 text-xs text-gray-400 italic text-center">
+              参加メンバーを2人以上選ぶと、ここに勝者選択ボタンが表示されます。
+            </div>
+          </div>
+
+          <!-- 申請/登録ボタン -->
+          <button type="button" onclick="submitMatch()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-600/20 transition-all text-sm">
+            <span id="submit-btn-text">戦績を申請する (承認待ちへ)</span>
+          </button>
+        </section>
+
+        <!-- ② クイックプレイヤー追加ツール -->
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 space-y-4">
+          <h2 class="font-bold text-md text-slate-800 flex items-center gap-2 border-b pb-2.5 border-gray-100">
+            <i class="fa-solid fa-user-plus text-sky-500"></i>
+            <span>プレイヤーの追加</span>
+          </h2>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">ユーザー名 / Discord表示名</label>
+            <input type="text" id="new-player-name" placeholder="例: Shiina" class="w-full text-sm bg-gray-50 border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 mb-1">Discord風ID (自動登録用シミュレート)</label>
+            <div class="flex gap-2">
+              <input type="text" id="new-player-discord-id" placeholder="例: shiina_7" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-sky-400">
+              <button type="button" onclick="generateDiscordPlayer()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0 transition">
+                ID連携
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1">※IDを入力して「ID連携」を押すと、Discord標準アイコンを再現して瞬時に自動登録します。</p>
+          </div>
+          <div class="border-t border-dashed border-gray-100 pt-3">
+            <label class="block text-xs font-bold text-gray-500 mb-1">手動アバター画像アップロード (任意)</label>
+            <input type="file" id="new-player-avatar" accept="image/*" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100">
+          </div>
+          <button type="button" onclick="addPlayerHandy()" class="w-full bg-slate-800 hover:bg-slate-950 text-white font-bold py-2.5 rounded-xl text-xs transition">
+            新規プレイヤーを手動追加
+          </button>
+        </section>
+
+      </div>
+
+      <!-- 右側: メインダッシュボード (ランキング＆戦績表) -->
+      <div class="lg:col-span-8 space-y-6">
+
+        <!-- ビジュアルダッシュボード (ここを丸ごとPNG出力可能にする) -->
+        <div class="bg-white rounded-3xl border border-gray-200/90 shadow-md overflow-hidden relative" id="dashboard-wrapper">
+          
+          <!-- 画像キャプチャ用の操作バー (画像出力時には隠れます) -->
+          <div class="bg-slate-50 border-b border-gray-100 p-4 flex flex-col sm:flex-row justify-between items-center gap-3" id="capture-toolbar">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center justify-center bg-emerald-100 text-emerald-800 text-xs font-bold w-2.5 h-2.5 rounded-full animate-ping"></span>
+              <span class="text-xs font-bold text-slate-600">現在リアルタイムで同期中</span>
+            </div>
+            <div class="flex gap-2 w-full sm:w-auto">
+              <!-- PNG保存ボタン -->
+              <button type="button" onclick="exportDashboardToPNG()" class="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-xl shadow-lg shadow-emerald-600/10 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-file-image"></i> Discord共有用PNGをダウンロード
+              </button>
+              <!-- スクショ最適化トグル -->
+              <button type="button" id="optimize-mode-btn" onclick="toggleOptimizeMode()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5" title="画像以外のコントロールを完全に非表示にします">
+                <i class="fa-solid fa-expand"></i> スクショ最適化
+              </button>
+            </div>
+          </div>
+
+          <!-- キャプチャ対象本体 -->
+          <div id="dashboard-capture" class="p-6 bg-[#f7f8fa] space-y-6">
+            
+            <div class="flex justify-between items-end border-b-2 border-slate-200/60 pb-3">
+              <div>
+                <h2 class="text-xl font-black text-slate-800 tracking-wider flex items-center gap-2">
+                  <span class="text-indigo-600">■</span> 7 SHADES OF S:EVEN
+                </h2>
+                <p class="text-[10px] font-bold text-slate-400 mt-0.5 tracking-widest uppercase">テストプレイ 公式戦績集計ボード</p>
+              </div>
+              <div class="text-right">
+                <span class="text-[10px] font-bold text-slate-400 block tracking-wider">更新日時</span>
+                <span id="current-board-date" class="text-xs font-mono font-bold text-slate-700">2026-07-15 18:16</span>
+              </div>
+            </div>
+
+            <!-- 特設2Dグリッドレイアウト (スクリーンショットのデザインを忠実に再現) -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+              
+              <!-- 総合ランキング (左側 4カラム) -->
+              <div class="md:col-span-4 space-y-4">
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                  <div class="flex items-center gap-2 mb-3.5 pb-2 border-b border-gray-100">
+                    <i class="fa-solid fa-crown text-amber-500 text-sm"></i>
+                    <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider">総合TOP3 ランキング</h3>
+                  </div>
+                  
+                  <div class="space-y-3" id="top3-ranking-container">
+                    <!-- JSで動的構築 -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- プレイヤー個別カード一覧 (右側 8カラム) -->
+              <div class="md:col-span-8">
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                  <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
+                    <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <i class="fa-solid fa-users text-indigo-500"></i> 登録プレイヤー戦績一覧
+                    </h3>
+                    <div class="text-[10px] text-slate-400 font-bold" id="total-players-badge">登録者: 30人</div>
+                  </div>
+
+                  <!-- プレイヤーグリッド一覧 (アップロード画像のようにグリッド状に配置) -->
+                  <div id="players-grid-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-1">
+                    <!-- JSで動的構築 -->
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- ボードフッター -->
+            <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 pt-3 border-t border-slate-200/50">
+              <div>※勝率は四捨五入して整数で算出されています。</div>
+              <div id="total-matches-count">総プレイ承認回数: 3回</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ③ 承認管理 ＆ 履歴タブ (管理者用に表示) -->
+        <section id="admin-section" class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 space-y-6">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-4 border-gray-100">
+            <div>
+              <h2 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-user-shield text-indigo-600"></i>
+                <span>管理者コンソール</span>
+              </h2>
+              <p class="text-xs text-gray-500">戦績の承認作業、データのエクスポート、データの全消去が可能です。</p>
+            </div>
+            
+            <!-- スプシ出力ボタン -->
+            <button type="button" onclick="exportToCSV()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow transition flex items-center gap-1.5">
+              <i class="fa-solid fa-file-excel text-emerald-400"></i> スプシ用CSVエクスポート
+            </button>
+          </div>
+
+          <!-- 承認待ち申請リスト -->
+          <div>
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-amber-500 block"></span>
+              承認待ちの申請一覧 (<span id="pending-list-count" class="font-bold">0</span>)
+            </h3>
+            <div id="pending-matches-container" class="space-y-3">
+              <!-- JSで動的構築 -->
+            </div>
+          </div>
+
+          <!-- 承認済み履歴リスト -->
+          <div>
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 block"></span>
+              承認済み戦績履歴
+            </h3>
+            <div class="border border-gray-100 rounded-xl overflow-hidden">
+              <div class="max-h-60 overflow-y-auto bg-gray-50/50">
+                <table class="min-w-full divide-y divide-gray-100 text-left text-xs">
+                  <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
+                    <tr>
+                      <th class="px-4 py-2.5">日付</th>
+                      <th class="px-4 py-2.5">参加メンバー</th>
+                      <th class="px-4 py-2.5">勝者</th>
+                      <th class="px-4 py-2.5 text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="approved-matches-table-body" class="divide-y divide-gray-100 bg-white">
+                    <!-- JSで動的構築 -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- システム初期化 -->
+          <div class="border-t border-dashed border-gray-100 pt-4 flex justify-between items-center">
+            <span class="text-xs text-slate-400">データの初期化（テスト用初期値に戻す）:</span>
+            <button type="button" onclick="resetToDefaultData()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-1.5 px-3 rounded-lg border border-rose-200 transition">
+              データを初期データにリセット
+            </button>
+          </div>
+        </section>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- 履歴コピペ選択用モーダル -->
+  <div id="history-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-clock-rotate-left mr-2 text-indigo-600"></i>過去の対戦メンバーからコピー</h3>
+        <button onclick="closeHistoryCopyModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <p class="text-xs text-gray-500">メンバーをコピペしたい対戦履歴を選んで「このメンバーをセット」ボタンを押してください。</p>
+      
+      <div id="modal-history-list" class="max-h-80 overflow-y-auto space-y-2 pr-1">
+        <!-- 動的表示 -->
+      </div>
+      
+      <div class="flex justify-end pt-2">
+        <button onclick="closeHistoryCopyModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 px-4 rounded-xl transition">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-slate-900 text-slate-500 text-xs py-10 mt-12 border-t border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
+      <p>7 SHADES OF S:EVEN Test-play Stat Management System © 2026</p>
+      <p class="text-slate-600">Developed in partnership with testing community. Optimized for Discord Image sharing.</p>
+    </div>
+  </footer>
+
+  <!-- JavaScript ロジック -->
+  <script>
+    // --- 定数・初期設定 ---
+    const STORAGE_PREFIX = "7shades_match_tracker_";
+    let currentRole = "tester"; // 'tester' | 'admin'
+    let memberSortKey = "playCount"; // 'playCount' | 'alphabetical'
+    let searchQuery = "";
+
+    // カラーパレット (Discordログイン風のイニシャルアバター生成用)
+    const avatarBgColors = [
+      '#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245',
+      '#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e67e22'
+    ];
+
+    // デフォルトプレイヤーデータ (アップロード画像から再現)
+    const defaultPlayers = [
+      { id: "p1", name: "Shiina", discordId: "shiina_7", avatar: "", customTriangleColor: "" },
+      { id: "p2", name: "sinn", discordId: "sinn_cos", avatar: "", customTriangleColor: "" },
+      { id: "p3", name: "YGM", discordId: "ygm_01", avatar: "", customTriangleColor: "" },
+      { id: "p4", name: "Taka", discordId: "taka_good", avatar: "", customTriangleColor: "" },
+      { id: "p5", name: "いっけるいな", discordId: "ikkeru", avatar: "", customTriangleColor: "" },
+      { id: "p6", name: "クスノキ", discordId: "kusunoki", avatar: "", customTriangleColor: "" },
+      { id: "p7", name: "sadasachi", discordId: "sada", avatar: "", customTriangleColor: "" },
+      { id: "p8", name: "和太鼓", discordId: "wadaiko", avatar: "", customTriangleColor: "" },
+      { id: "p9", name: "ハリネズミ", discordId: "harinezumi", avatar: "", customTriangleColor: "" },
+      { id: "p10", name: "トム", discordId: "tom_seven", avatar: "", customTriangleColor: "" },
+      { id: "p11", name: "こぎみゅん", discordId: "cogimyun", avatar: "", customTriangleColor: "" },
+      { id: "p12", name: "ころお", discordId: "koroo_discord", avatar: "", customTriangleColor: "" },
+      { id: "p13", name: "うさるこ", discordId: "usaruko", avatar: "", customTriangleColor: "" },
+      { id: "p14", name: "エルネスト", discordId: "ernesto", avatar: "", customTriangleColor: "" },
+      { id: "p15", name: "影虎", discordId: "kagetora", avatar: "", customTriangleColor: "" },
+      { id: "p16", name: "セン", discordId: "sen_12", avatar: "", customTriangleColor: "" },
+      { id: "p17", name: "Kalos", discordId: "kalos_shades", avatar: "", customTriangleColor: "" },
+      { id: "p18", name: "KqrN0", discordId: "kqrn0_play", avatar: "", customTriangleColor: "" },
+      { id: "p19", name: "えーくん", discordId: "e_kun", avatar: "", customTriangleColor: "" },
+      { id: "p20", name: "つきあかり", discordId: "tsukiakari", avatar: "", customTriangleColor: "" },
+      { id: "p21", name: "siri", discordId: "siri_virtual", avatar: "", customTriangleColor: "" },
+      { id: "p22", name: "ダディ", discordId: "daddy_tester", avatar: "", customTriangleColor: "" },
+      { id: "p23", name: "霞ゆず", discordId: "yuzu_kasumi", avatar: "", customTriangleColor: "" },
+      { id: "p24", name: "ねこぼた", discordId: "nekobota", avatar: "", customTriangleColor: "" },
+      { id: "p25", name: "さりぼー", discordId: "saribow", avatar: "", customTriangleColor: "" },
+      { id: "p26", name: "owo_livia", discordId: "livia_owo", avatar: "", customTriangleColor: "" },
+      { id: "p27", name: "LAOSHI", discordId: "laoshi_shades", avatar: "", customTriangleColor: "" },
+      { id: "p28", name: "氷牙", discordId: "hyoga_ice", avatar: "", customTriangleColor: "" },
+      { id: "p29", name: "yUneshi", discordId: "yuneshi", avatar: "", customTriangleColor: "" },
+      { id: "p30", name: "ヤマダ", discordId: "yamada_shades", avatar: "", customTriangleColor: "" }
+    ];
+
+    // デフォルト対戦履歴データ (画像の内容を完璧にシミュレート)
+    const defaultMatches = [
+      { id: "m1", date: "2026-07-15", members: ["p1"], winnerId: "p1", status: "approved", createdAt: 1715760000000 },
+      { id: "m2", date: "2026-07-15", members: ["p2", "p3"], winnerId: "p2", status: "approved", createdAt: 1715760100000 },
+      { id: "m3", date: "2026-07-15", members: ["p3", "p2", "p18"], winnerId: "p3", status: "approved", createdAt: 1715760200000 },
+      { id: "m4", date: "2026-07-15", members: ["p8", "p9", "p10"], winnerId: "p9", status: "pending", createdAt: 1715760300000 }
+    ];
+
+    // アプリ状態
+    let players = [];
+    let matches = [];
+
+    // 起動時処理
+    window.onload = function() {
+      loadData();
+      
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('match-date').value = today;
+
+      updateBoardDateTime();
+      renderAll();
+    };
+
+    function updateBoardDateTime() {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      document.getElementById('current-board-date').innerText = 
+        `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+
+    // --- データ保存・読み込み管理 ---
+    function loadData() {
+      const loadedPlayers = localStorage.getItem(STORAGE_PREFIX + "players");
+      const loadedMatches = localStorage.getItem(STORAGE_PREFIX + "matches");
+
+      if (loadedPlayers) {
+        players = JSON.parse(loadedPlayers);
+      } else {
+        players = [...defaultPlayers];
+        savePlayers();
+      }
+
+      if (loadedMatches) {
+        matches = JSON.parse(loadedMatches);
+      } else {
+        matches = [...defaultMatches];
+        saveMatches();
+      }
+    }
+
+    function savePlayers() {
+      localStorage.setItem(STORAGE_PREFIX + "players", JSON.stringify(players));
+    }
+
+    function saveMatches() {
+      localStorage.setItem(STORAGE_PREFIX + "matches", JSON.stringify(matches));
+    }
+
+    function resetToDefaultData() {
+      if(confirm("データをテスト用の初期状態に戻してもよろしいですか？（現在のすべての追加プレイヤーと戦績がリセットされます）")) {
+        players = JSON.parse(JSON.stringify(defaultPlayers));
+        matches = JSON.parse(JSON.stringify(defaultMatches));
+        savePlayers();
+        saveMatches();
+        renderAll();
+        showToast("データを初期状態にリセットしました。");
+      }
+    }
+
+    // --- ロール（権限）の変更 ---
+    function switchRole(role) {
+      currentRole = role;
+      const testerBtn = document.getElementById('role-tester-btn');
+      const adminBtn = document.getElementById('role-admin-btn');
+      const formTitle = document.getElementById('form-title');
+      const formBadge = document.getElementById('form-badge');
+      const submitBtnText = document.getElementById('submit-btn-text');
+      const adminSection = document.getElementById('admin-section');
+
+      if (role === 'admin') {
+        adminBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 bg-indigo-600 text-white shadow-sm";
+        testerBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 text-slate-400 hover:text-white ml-1";
+        formTitle.innerText = "戦績の直接登録";
+        formBadge.innerText = "管理者権限";
+        formBadge.className = "bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
+        submitBtnText.innerText = "戦績を即時登録 (承認済み)";
+        adminSection.classList.remove('hidden');
+      } else {
+        testerBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 bg-indigo-600 text-white shadow-sm";
+        adminBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 text-slate-400 hover:text-white ml-1";
+        formTitle.innerText = "戦績の申請";
+        formBadge.innerText = "一般申請用";
+        formBadge.className = "bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
+        submitBtnText.innerText = "戦績を申請する (承認待ちへ)";
+        adminSection.classList.add('hidden');
+      }
+      showToast(`操作権限を「${role === 'admin' ? '管理者' : '一般テスター'}」に切り替えました。`);
+    }
+
+    // --- 各種計算（集計）ロジック ---
+    function computePlayerStats() {
+      const stats = {};
+      players.forEach(p => {
+        stats[p.id] = {
+          id: p.id,
+          name: p.name,
+          avatar: p.avatar,
+          customTriangleColor: p.customTriangleColor,
+          discordId: p.discordId,
+          matchesCount: 0,
+          winsCount: 0,
+          winRate: 0
+        };
+      });
+
+      matches.filter(m => m.status === 'approved').forEach(match => {
+        match.members.forEach(memberId => {
+          if (stats[memberId]) {
+            stats[memberId].matchesCount += 1;
+            if (match.winnerId === memberId) {
+              stats[memberId].winsCount += 1;
+            }
+          }
+        });
+      });
+
+      Object.keys(stats).forEach(id => {
+        const p = stats[id];
+        if (p.matchesCount > 0) {
+          p.winRate = Math.round((p.winsCount / p.matchesCount) * 100);
+        } else {
+          p.winRate = 0;
+        }
+      });
+
+      return stats;
+    }
+
+    function getContributionColor(matchCount, customColor) {
+      if (customColor) return customColor;
+      if (matchCount >= 30) return "#38bdf8"; // プラチナ
+      if (matchCount >= 15) return "#f59e0b"; // ゴールド
+      if (matchCount >= 5)  return "#94a3b8"; // シルバー
+      return "#7c2d12"; // ブロンズ
+    }
+
+    function getContributionRankName(matchCount) {
+      if (matchCount >= 30) return "プラチナ貢献者";
+      if (matchCount >= 15) return "ゴールド貢献者";
+      if (matchCount >= 5)  return "シルバー貢献者";
+      return "ブロンズテスター";
+    }
+
+    // --- UI レンダリングコア ---
+    function renderAll() {
+      const stats = computePlayerStats();
+      const statsList = Object.values(stats);
+
+      renderTop3Ranking(statsList);
+      renderPlayersGrid(statsList);
+      renderMemberSelection(statsList);
+      renderAdminConsole();
+
+      const pendingCount = matches.filter(m => m.status === 'pending').length;
+      const banner = document.getElementById('pending-banner');
+      if (pendingCount > 0) {
+        banner.classList.remove('hidden');
+        document.getElementById('pending-count').innerText = pendingCount;
+      } else {
+        banner.classList.add('hidden');
+      }
+
+      const totalApproved = matches.filter(m => m.status === 'approved').length;
+      document.getElementById('total-matches-count').innerText = `総プレイ承認回数: ${totalApproved}回`;
+      document.getElementById('total-players-badge').innerText = `登録者: ${players.length}人`;
+    }
+
+    // ランキングの構築（バッジをアバターに重ねて横スペースを究極節約する超堅牢レイアウト）
+    function renderTop3Ranking(statsList) {
+      const container = document.getElementById('top3-ranking-container');
+      container.innerHTML = "";
+
+      const sorted = [...statsList].sort((a, b) => {
+        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+        if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount;
+        return b.matchesCount - a.matchesCount;
+      });
+
+      const top3 = sorted.filter(p => p.matchesCount > 0).slice(0, 3);
+
+      if (top3.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-6">承認済みの対戦データがまだありません。</p>`;
+        return;
+      }
+
+      top3.forEach((player, idx) => {
+        // メダルの absolute オーバーレイバッジ
+        const badgeColors = [
+          "bg-amber-500 text-white border-yellow-300 shadow-md shadow-amber-500/30", // 1st 金
+          "bg-slate-400 text-white border-slate-200 shadow-md shadow-slate-400/30",  // 2nd 銀
+          "bg-amber-700 text-white border-amber-500 shadow-md shadow-amber-700/30"  // 3rd 銅
+        ];
+        const badgeTexts = ["🥇", "🥈", "🥉"];
+
+        // アバターHTML（親側で absolute 重ねをするため、アバター生成を一部展開）
+        const sizePx = 40; // w-10 = 40px
+        const trigSize = 14;
+        const color = getContributionColor(player.matchesCount, player.customTriangleColor);
+        const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
+
+        let avatarImgHtml = "";
+        if (player.avatar) {
+          avatarImgHtml = `<img src="${player.avatar}" class="w-full h-full object-cover">`;
+        } else {
+          const char = player.name ? player.name.charAt(0).toUpperCase() : '?';
+          const bgIdx = Math.abs(player.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % avatarBgColors.length;
+          const bgColor = avatarBgColors[bgIdx];
+          avatarImgHtml = `
+            <div class="w-full h-full flex items-center justify-center text-white font-black" style="background-color: ${bgColor}; font-size: 18px">
+              ${char}
+            </div>
+          `;
+        }
+
+        // アバター＋絶対配置バッジをパッケージ化
+        const avatarWithBadgeHtml = `
+          <div class="relative shrink-0" title="${tooltip}">
+            <!-- アバター本体 -->
+            <div class="rounded-full border border-slate-200 overflow-hidden shadow-inner" style="width: ${sizePx}px; height: ${sizePx}px;">
+              ${avatarImgHtml}
+              <!-- 三角マーク -->
+              <div class="absolute bottom-0 right-0 triangle-indicator" 
+                   style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
+              </div>
+            </div>
+            <!-- 絶対配置の順位バッジ (左上に綺麗にオーバーレイ) -->
+            <div class="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full border flex items-center justify-center text-[10px] font-black ${badgeColors[idx]} z-10">
+              ${badgeTexts[idx]}
+            </div>
+          </div>
+        `;
+        
+        const row = document.createElement('div');
+        // grid-cols-12 で左側（名前＋バッジアバター）に 8カラム、右側（スタッツ）に 4カラム をカチッと割り当てる
+        row.className = "p-2 rounded-xl bg-slate-50 border border-slate-100 hover:shadow-sm transition grid grid-cols-12 gap-1 items-center";
+        row.innerHTML = `
+          <!-- 左側：バッジ付きアバター ＋ 名前 (8カラム) -->
+          <div class="col-span-8 flex items-center gap-2.5 min-w-0">
+            ${avatarWithBadgeHtml}
+            <div class="min-w-0 flex-1">
+              <div class="font-black text-xs text-slate-800 truncate" title="${player.name}">${player.name}</div>
+              <div class="text-[9px] text-slate-400 font-mono truncate">@${player.discordId || 'no_id'}</div>
+            </div>
+          </div>
+          
+          <!-- 右側：スタッツ (4カラム、完全に右寄せ固定) -->
+          <div class="col-span-4 flex items-center justify-end gap-1 font-mono text-center shrink-0">
+            <div class="w-9 bg-white rounded-lg py-1 border border-slate-100/80 shadow-sm">
+              <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">勝率</span>
+              <span class="font-mono font-black text-indigo-600 text-[10px] sm:text-xs">${player.winRate}%</span>
+            </div>
+            <div class="w-7 bg-white rounded-lg py-1 border border-slate-100/80 shadow-sm">
+              <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">勝利</span>
+              <span class="font-mono font-bold text-slate-700 text-[10px] sm:text-xs">${player.winsCount}</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    // プレイヤー個別カードの構築（グリッド境界により100%重なりを防ぐ堅牢な2Dレイアウト）
+    function renderPlayersGrid(statsList) {
+      const container = document.getElementById('players-grid-container');
+      container.innerHTML = "";
+
+      const sorted = [...statsList].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+
+      sorted.forEach(player => {
+        const avatarHtml = getAvatarElementHtml(player, 10);
+        
+        const card = document.createElement('div');
+        // grid-cols-12 を使用して左半分(7カラム)と右半分(5カラム)の境界線を完全に分離
+        card.className = "bg-white border border-slate-200/80 rounded-xl p-2.5 grid grid-cols-12 gap-2 items-center hover:border-indigo-200 transition-colors shadow-sm";
+        card.innerHTML = `
+          <!-- 左側領域 (7カラム分占有、中身がどれだけ縮んでもスタッツ領域に被らない) -->
+          <div class="col-span-7 flex items-center gap-2 min-w-0">
+            <div class="shrink-0">
+              ${avatarHtml}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="font-black text-xs text-slate-800 truncate" title="${player.name}">${player.name}</div>
+              <div class="text-[9px] text-slate-400 font-mono truncate">@${player.discordId || 'no_id'}</div>
+            </div>
+          </div>
+          
+          <!-- 右側領域 (5カラム分占有、右寄せ固定) -->
+          <div class="col-span-5 flex items-center justify-end gap-1 font-mono text-center shrink-0">
+            <div class="w-8 sm:w-10 bg-slate-50 border border-slate-100 rounded-lg py-1">
+              <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">対戦</span>
+              <span class="font-bold text-slate-700 text-[10px] sm:text-xs">${player.matchesCount}</span>
+            </div>
+            <div class="w-8 sm:w-10 bg-slate-50 border border-slate-100 rounded-lg py-1">
+              <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">勝利</span>
+              <span class="font-bold text-slate-700 text-[10px] sm:text-xs">${player.winsCount}</span>
+            </div>
+            <div class="w-10 sm:w-12 bg-indigo-50/50 border border-indigo-100 rounded-lg py-1">
+              <span class="text-[7px] text-indigo-400 block font-bold leading-none mb-0.5">勝率</span>
+              <span class="font-black text-indigo-600 text-[10px] sm:text-xs">${player.winRate}%</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // アバターHTML作成のヘルパー
+    function getAvatarElementHtml(player, sizeClassNum) {
+      const sizePx = sizeClassNum * 4;
+      const trigSize = Math.max(4, Math.floor(sizePx * 0.35));
+      const color = getContributionColor(player.matchesCount, player.customTriangleColor);
+      const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
+
+      let avatarImgHtml = "";
+      if (player.avatar) {
+        avatarImgHtml = `<img src="${player.avatar}" class="w-full h-full object-cover">`;
+      } else {
+        const char = player.name ? player.name.charAt(0).toUpperCase() : '?';
+        const bgIdx = Math.abs(player.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % avatarBgColors.length;
+        const bgColor = avatarBgColors[bgIdx];
+        avatarImgHtml = `
+          <div class="w-full h-full flex items-center justify-center text-white font-black" style="background-color: ${bgColor}; font-size: ${sizePx * 0.45}px">
+            ${char}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="relative rounded-full border border-slate-200 overflow-hidden shrink-0 shadow-inner" style="width: ${sizePx}px; height: ${sizePx}px;" title="${tooltip}">
+          ${avatarImgHtml}
+          <!-- 三角マーク（右下斜めカット） -->
+          <div class="absolute bottom-0 right-0 triangle-indicator" 
+               style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
+          </div>
+        </div>
+      `;
+    }
+
+    // フォーム用：メンバー一覧チェックボックス
+    let selectedMemberIds = [];
+    function renderMemberSelection(statsList) {
+      const container = document.getElementById('members-selection-container');
+      container.innerHTML = "";
+
+      let listToRender = [...statsList];
+
+      if (searchQuery.trim() !== "") {
+        listToRender = listToRender.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      }
+
+      if (memberSortKey === 'playCount') {
+        listToRender.sort((a, b) => {
+          if (b.matchesCount !== a.matchesCount) return b.matchesCount - a.matchesCount;
+          return a.name.localeCompare(b.name, 'ja');
+        });
+      } else {
+        listToRender.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      }
+
+      if (listToRender.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-4">該当するメンバーはいません。</p>`;
+        return;
+      }
+
+      listToRender.forEach(p => {
+        const isChecked = selectedMemberIds.includes(p.id);
+        const div = document.createElement('div');
+        div.className = `flex items-center justify-between p-2 rounded-lg transition-all ${isChecked ? 'bg-indigo-50 border border-indigo-100' : 'hover:bg-gray-100'}`;
+        
+        const avatarHtml = getAvatarElementHtml(p, 7);
+
+        div.innerHTML = `
+          <label class="flex items-center gap-2 cursor-pointer w-full text-xs font-bold text-slate-700">
+            <input type="checkbox" value="${p.id}" ${isChecked ? 'checked' : ''} onchange="toggleMemberSelection('${p.id}')" class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 border-gray-300">
+            ${avatarHtml}
+            <span class="truncate">${p.name} <span class="text-[9px] text-slate-400 font-mono font-normal">(${p.matchesCount}回)</span></span>
+          </label>
+        `;
+        container.appendChild(div);
+      });
+
+      renderWinnerSelection();
+    }
+
+    function toggleMemberSelection(id) {
+      if (selectedMemberIds.includes(id)) {
+        selectedMemberIds = selectedMemberIds.filter(mid => mid !== id);
+      } else {
+        selectedMemberIds.push(id);
+      }
+      renderWinnerSelection();
+      const stats = computePlayerStats();
+      renderMemberSelection(Object.values(stats));
+    }
+
+    // 勝者選択ラジオボタン
+    let selectedWinnerId = null;
+    function renderWinnerSelection() {
+      const container = document.getElementById('winner-selection-container');
+      container.innerHTML = "";
+
+      if (selectedMemberIds.length < 1) {
+        container.className = "border border-indigo-50 rounded-xl p-2.5 bg-indigo-50/20 text-xs text-gray-400 italic text-center";
+        container.innerText = "参加メンバーを1名以上選ぶと、ここに勝者選択ボタンが表示されます。";
+        selectedWinnerId = null;
+        return;
+      }
+
+      container.className = "grid grid-cols-2 gap-2";
+      
+      selectedMemberIds.forEach(id => {
+        const p = players.find(player => player.id === id);
+        if (!p) return;
+
+        const isWinner = selectedWinnerId === id;
+        const btn = document.createElement('button');
+        btn.type = "button";
+        btn.onclick = () => selectWinner(id);
+        btn.className = `p-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 border transition ${isWinner ? 'bg-amber-100 border-amber-300 text-amber-800 shadow-sm' : 'bg-white border-gray-200 text-slate-700 hover:bg-gray-50'}`;
+        btn.innerHTML = `
+          <i class="fa-solid ${isWinner ? 'fa-crown text-amber-500' : 'fa-circle-dot text-gray-300'} text-[10px]"></i>
+          <span class="truncate">${p.name}</span>
+        `;
+        container.appendChild(btn);
+      });
+
+      if (selectedMemberIds.length === 1) {
+        if (selectedWinnerId !== selectedMemberIds[0]) {
+          selectWinner(selectedMemberIds[0]);
+        }
+      } else if (selectedWinnerId && !selectedMemberIds.includes(selectedWinnerId)) {
+        selectedWinnerId = null;
+      }
+    }
+
+    function selectWinner(id) {
+      selectedWinnerId = id;
+      renderWinnerSelection();
+    }
+
+    // ソートボタンの切り替え
+    function toggleMemberSort(key) {
+      memberSortKey = key;
+      const playCountBtn = document.getElementById('sort-playcount-btn');
+      const alphaBtn = document.getElementById('sort-alpha-btn');
+
+      if (key === 'playCount') {
+        playCountBtn.className = "text-[10px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-600 border border-indigo-100";
+        alphaBtn.className = "text-[10px] font-bold px-2 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200";
+      } else {
+        alphaBtn.className = "text-[10px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-600 border border-indigo-100";
+        playCountBtn.className = "text-[10px] font-bold px-2 py-1 rounded bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200";
+      }
+
+      const stats = computePlayerStats();
+      renderMemberSelection(Object.values(stats));
+    }
+
+    function filterMembers() {
+      searchQuery = document.getElementById('member-search').value;
+      const stats = computePlayerStats();
+      renderMemberSelection(Object.values(stats));
+    }
+
+    // --- 管理者コンソールのレンダリング ---
+    function renderAdminConsole() {
+      const pendingContainer = document.getElementById('pending-matches-container');
+      const pendingList = matches.filter(m => m.status === 'pending');
+      document.getElementById('pending-list-count').innerText = pendingList.length;
+
+      pendingContainer.innerHTML = "";
+      if (pendingList.length === 0) {
+        pendingContainer.innerHTML = `
+          <div class="text-center p-6 border border-dashed border-gray-200 rounded-xl bg-slate-50 text-slate-400 text-xs">
+            <i class="fa-solid fa-check-double text-lg text-emerald-400 block mb-1"></i>
+            承認待ちの申請は現在ありません。
+          </div>
+        `;
+      } else {
+        pendingList.forEach(match => {
+          const winner = players.find(p => p.id === match.winnerId);
+          const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(", ");
+          
+          const item = document.createElement('div');
+          item.className = "bg-amber-50/50 border border-amber-100 rounded-xl p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 fade-in";
+          item.innerHTML = `
+            <div>
+              <div class="flex items-center gap-1.5 mb-1">
+                <span class="bg-amber-100 text-amber-800 text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase">申請中</span>
+                <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
+              </div>
+              <div class="text-xs text-slate-700">
+                <span class="font-bold">メンバー:</span> ${membersNames}
+              </div>
+              <div class="text-xs text-amber-800 font-bold mt-0.5">
+                👑 勝者: ${winner ? winner.name : '未選定'}
+              </div>
+            </div>
+            <div class="flex gap-2 w-full sm:w-auto self-end sm:self-center">
+              <button onclick="approveMatch('${match.id}')" class="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-sm transition">
+                <i class="fa-solid fa-check mr-1"></i> 承認
+              </button>
+              <button onclick="deleteMatch('${match.id}')" class="flex-1 sm:flex-initial bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-1.5 px-3 rounded-lg border border-rose-200 transition">
+                <i class="fa-solid fa-trash mr-1"></i> 却下
+              </button>
+            </div>
+          `;
+          pendingContainer.appendChild(item);
+        });
+      }
+
+      const approvedBody = document.getElementById('approved-matches-table-body');
+      const approvedList = matches.filter(m => m.status === 'approved').sort((a,b) => b.createdAt - a.createdAt);
+
+      approvedBody.innerHTML = "";
+      if (approvedList.length === 0) {
+        approvedBody.innerHTML = `
+          <tr>
+            <td colspan="4" class="px-4 py-6 text-center text-slate-400 italic">
+              承認済みの対戦データはありません。
+            </td>
+          </tr>
+        `;
+      } else {
+        approvedList.forEach(match => {
+          const winner = players.find(p => p.id === match.winnerId);
+          const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(" / ");
+
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50/50 transition";
+          tr.innerHTML = `
+            <td class="px-4 py-2.5 font-mono text-slate-500 whitespace-nowrap">${match.date}</td>
+            <td class="px-4 py-2.5 text-slate-700 max-w-xs truncate" title="${membersNames}">${membersNames}</td>
+            <td class="px-4 py-2.5 font-black text-amber-700 whitespace-nowrap">👑 ${winner ? winner.name : "不明"}</td>
+            <td class="px-4 py-2.5 text-right whitespace-nowrap">
+              <button onclick="deleteMatch('${match.id}')" class="text-rose-500 hover:text-rose-700 font-semibold text-xs ml-2" title="削除">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </td>
+          `;
+          approvedBody.appendChild(tr);
+        });
+      }
+    }
+
+    // --- 各種アクション処理（戦績登録・コピーなど） ---
+
+    function copyLastMatch() {
+      const sorted = [...matches].sort((a,b) => b.createdAt - a.createdAt);
+      if (sorted.length === 0) {
+        showToast("コピー元となる対戦履歴がありません。");
+        return;
+      }
+      const last = sorted[0];
+      selectedMemberIds = [...last.members];
+      selectedWinnerId = last.winnerId;
+
+      const stats = computePlayerStats();
+      renderMemberSelection(Object.values(stats));
+      showToast("直近の対戦メンバーをコピーしました！");
+    }
+
+    function openHistoryCopyModal() {
+      const modal = document.getElementById('history-modal');
+      const container = document.getElementById('modal-history-list');
+      container.innerHTML = "";
+
+      const sorted = [...matches].sort((a,b) => b.createdAt - a.createdAt);
+      if (sorted.length === 0) {
+        showToast("履歴がありません。");
+        return;
+      }
+
+      sorted.forEach(match => {
+        const winner = players.find(p => p.id === match.winnerId);
+        const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(", ");
+        const statusBadge = match.status === 'approved' 
+          ? `<span class="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1 py-0.5 rounded">承認済</span>`
+          : `<span class="bg-amber-100 text-amber-800 text-[8px] font-bold px-1 py-0.5 rounded">申請中</span>`;
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center hover:bg-slate-100 transition";
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center gap-1.5 mb-1">
+              ${statusBadge}
+              <span class="text-[9px] text-slate-400 font-mono">${match.date}</span>
+            </div>
+            <div class="text-[11px] text-slate-700 truncate max-w-sm"><span class="font-bold">メンバー:</span> ${membersNames}</div>
+            <div class="text-[11px] text-amber-700 font-bold mt-0.5">👑 勝者: ${winner ? winner.name : '未選定'}</div>
+          </div>
+          <button onclick="applyCopiedHistory('${match.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg transition shrink-0">
+            セットする
+          </button>
+        `;
+        container.appendChild(card);
+      });
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeHistoryCopyModal() {
+      document.getElementById('history-modal').classList.add('hidden');
+    }
+
+    function applyCopiedHistory(matchId) {
+      const match = matches.find(m => m.id === matchId);
+      if (match) {
+        selectedMemberIds = [...match.members];
+        selectedWinnerId = match.winnerId;
+
+        const stats = computePlayerStats();
+        renderMemberSelection(Object.values(stats));
+        closeHistoryCopyModal();
+        showToast("対戦メンバーを復元しました！");
+      }
+    }
+
+    function submitMatch() {
+      const dateVal = document.getElementById('match-date').value;
+      if (!dateVal) {
+        alert("プレイ日を選択してください。");
+        return;
+      }
+      if (selectedMemberIds.length === 0) {
+        alert("参加メンバーを1名以上選択してください。");
+        return;
+      }
+      if (!selectedWinnerId) {
+        alert("勝者を1名選択してください。");
+        return;
+      }
+
+      const newMatch = {
+        id: "m_" + Date.now(),
+        date: dateVal,
+        members: [...selectedMemberIds],
+        winnerId: selectedWinnerId,
+        status: currentRole === 'admin' ? 'approved' : 'pending',
+        createdAt: Date.now()
+      };
+
+      matches.push(newMatch);
+      saveMatches();
+      
+      renderAll();
+      updateBoardDateTime();
+
+      selectedMemberIds = [];
+      selectedWinnerId = null;
+      document.getElementById('member-search').value = "";
+      searchQuery = "";
+      
+      const stats = computePlayerStats();
+      renderMemberSelection(Object.values(stats));
+
+      if (currentRole === 'admin') {
+        showToast("戦績を直接登録し、ボードに反映しました！");
+      } else {
+        showToast("戦績を申請しました。管理者の承認をお待ちください。");
+        setTimeout(() => {
+          if(confirm("申請を承認するシミュレートを行いますか？\n（ロールを管理者に切り替えて承認画面へ案内します）")) {
+            switchRole('admin');
+            scrollToSection('admin-section');
+          }
+        }, 800);
+      }
+    }
+
+    function approveMatch(matchId) {
+      const match = matches.find(m => m.id === matchId);
+      if (match) {
+        match.status = 'approved';
+        saveMatches();
+        renderAll();
+        updateBoardDateTime();
+        showToast("戦績の申請を承認しました！ダッシュボードに反映されました。");
+      }
+    }
+
+    function deleteMatch(matchId) {
+      if(confirm("この戦績データを削除しますか？")) {
+        matches = matches.filter(m => m.id !== matchId);
+        saveMatches();
+        renderAll();
+        updateBoardDateTime();
+        showToast("戦績データを削除しました。");
+      }
+    }
+
+    function addPlayerHandy() {
+      const nameInput = document.getElementById('new-player-name');
+      const name = nameInput.value.trim();
+      const discordId = document.getElementById('new-player-discord-id').value.trim();
+      const fileInput = document.getElementById('new-player-avatar');
+
+      if (!name) {
+        alert("ユーザー名を入力してください。");
+        return;
+      }
+
+      const addNew = (avatarBase64 = "") => {
+        if (players.some(p => p.name === name)) {
+          alert("同じ名前のプレイヤーが既に登録されています。");
+          return;
+        }
+
+        const newP = {
+          id: "p_" + Date.now(),
+          name: name,
+          discordId: discordId || name.toLowerCase() + "_shades",
+          avatar: avatarBase64,
+          customTriangleColor: ""
+        };
+
+        players.push(newP);
+        savePlayers();
+        renderAll();
+
+        nameInput.value = "";
+        document.getElementById('new-player-discord-id').value = "";
+        fileInput.value = "";
+        showToast(`「${name}」を追加しました。`);
+      };
+
+      if (fileInput.files && fileInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          addNew(e.target.result);
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+      } else {
+        addNew("");
+      }
+    }
+
+    function generateDiscordPlayer() {
+      const dIdInput = document.getElementById('new-player-discord-id');
+      const discordId = dIdInput.value.trim();
+      if (!discordId) {
+        alert("Discord風IDを入力してください。（例: kuro_neko）");
+        return;
+      }
+
+      let guessedName = discordId
+        .split(/[_-]/)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+
+      if (players.some(p => p.name === guessedName)) {
+        guessedName += ` (${Math.floor(Math.random()*100)})`;
+      }
+
+      const newP = {
+        id: "p_" + Date.now(),
+        name: guessedName,
+        discordId: discordId,
+        avatar: "",
+        customTriangleColor: ""
+      };
+
+      players.push(newP);
+      savePlayers();
+      renderAll();
+
+      document.getElementById('new-player-name').value = "";
+      dIdInput.value = "";
+      showToast(`Discord自動登録成功: ${guessedName} さんが参加しました！`);
+    }
+
+    // --- その他UIアシストツール ---
+
+    function showToast(message) {
+      const toast = document.getElementById('status-toast');
+      const text = document.getElementById('status-toast-text');
+      text.innerText = message;
+      toast.classList.remove('hidden');
+
+      if (window.toastTimeout) clearTimeout(window.toastTimeout);
+      window.toastTimeout = setTimeout(() => {
+        closeToast();
+      }, 5000);
+    }
+
+    function closeToast() {
+      document.getElementById('status-toast').classList.add('hidden');
+    }
+
+    // スムーズスクロール
+    function scrollToSection(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    let isOptimizeMode = false;
+    function toggleOptimizeMode() {
+      isOptimizeMode = !isOptimizeMode;
+      const optimizeBtn = document.getElementById('optimize-mode-btn');
+      
+      if (isOptimizeMode) {
+        optimizeBtn.innerHTML = `<i class="fa-solid fa-compress"></i> 編集モードに戻る`;
+        optimizeBtn.className = "bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5";
+        
+        document.querySelector('header').classList.add('hidden');
+        document.querySelector('footer').classList.add('hidden');
+        document.querySelector('.lg\\:col-span-4').classList.add('hidden');
+        document.getElementById('admin-section').classList.add('hidden');
+        document.getElementById('pending-banner').classList.add('hidden');
+        
+        document.querySelector('.grid').className = "grid grid-cols-1 gap-6 max-w-4xl mx-auto";
+        showToast("スクショ最適化モードになりました。[ESC]を押すか、ボタンから元に戻れます。");
+      } else {
+        restoreNormalMode();
+      }
+    }
+
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && isOptimizeMode) {
+        restoreNormalMode();
+      }
+    });
+
+    function restoreNormalMode() {
+      isOptimizeMode = false;
+      const optimizeBtn = document.getElementById('optimize-mode-btn');
+      optimizeBtn.innerHTML = `<i class="fa-solid fa-expand"></i> スクショ最適化`;
+      optimizeBtn.className = "bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5";
+
+      document.querySelector('header').classList.remove('hidden');
+      document.querySelector('footer').classList.remove('hidden');
+      document.querySelector('.lg\\:col-span-4').classList.remove('hidden');
+      document.getElementById('pending-banner').classList.remove('hidden');
+      if (currentRole === 'admin') {
+        document.getElementById('admin-section').classList.remove('hidden');
+      }
+
+      document.querySelector('.grid').className = "grid grid-cols-1 lg:grid-cols-12 gap-6";
+    }
+
+    function exportDashboardToPNG() {
+      showToast("画像を生成中... しばらくお待ちください。");
+      
+      const target = document.getElementById('dashboard-capture');
+      const options = {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#f7f8fa',
+        logging: false
+      };
+
+      html2canvas(target, options).then(canvas => {
+        try {
+          const imgData = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          const d = new Date();
+          const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+          
+          link.download = `7shades_stats_${dateStr}.png`;
+          link.href = imgData;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          showToast("高画質PNG画像のダウンロードに成功しました！Discordに貼り付けて共有してください。");
+        } catch (err) {
+          console.error(err);
+          alert("画像の出力中にエラーが発生しました。");
+        }
+      });
+    }
+
+    function exportToCSV() {
+      const approvedList = matches.filter(m => m.status === 'approved').sort((a,b) => a.createdAt - b.createdAt);
+      if (approvedList.length === 0) {
+        alert("エクスポートできる承認済み戦績がありません。");
+        return;
+      }
+
+      let csvContent = "対戦ID,日付,参加メンバー,勝者ID,勝者名\r\n";
+      
+      approvedList.forEach(match => {
+        const winner = players.find(p => p.id === match.winnerId);
+        const winnerName = winner ? winner.name : "不明";
+        const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(" / ");
+        
+        csvContent += `"${match.id}","${match.date}","${membersNames}","${match.winnerId}","${winnerName}"\r\n`;
+      });
+
+      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+      const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', '7shades_match_history.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast("CSVファイルのエクスポートに成功しました！Googleスプレッドシート等に読み込ませてください。");
+    }
+
+  </script>
+</body>
+</html>
