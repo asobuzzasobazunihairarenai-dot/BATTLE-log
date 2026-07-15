@@ -661,9 +661,9 @@
           <!-- 左側：バッジ付きアバター ＋ 名前 (8カラム) -->
           <div class="col-span-8 flex items-center gap-2.5 min-w-0">
             ${avatarWithBadgeHtml}
-            <div class="min-w-0 flex-1">
-              <div class="font-black text-xs text-slate-800 truncate" title="${player.name}">${player.name}</div>
-              <div class="text-[9px] text-slate-400 font-mono truncate">@${player.discordId || 'no_id'}</div>
+            <div class="min-w-0 flex-1 flex flex-col justify-center py-0.5">
+              <div class="font-black text-xs text-slate-800 truncate leading-normal" title="${player.name}">${player.name}</div>
+              <div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId || 'no_id'}</div>
             </div>
           </div>
           
@@ -702,9 +702,9 @@
             <div class="shrink-0">
               ${avatarHtml}
             </div>
-            <div class="min-w-0 flex-1">
-              <div class="font-black text-xs text-slate-800 truncate" title="${player.name}">${player.name}</div>
-              <div class="text-[9px] text-slate-400 font-mono truncate">@${player.discordId || 'no_id'}</div>
+            <div class="min-w-0 flex-1 flex flex-col justify-center py-0.5">
+              <div class="font-black text-xs text-slate-800 truncate leading-normal" title="${player.name}">${player.name}</div>
+              <div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId || 'no_id'}</div>
             </div>
           </div>
           
@@ -1102,16 +1102,7 @@
       }
     }
 
-    function deleteMatch(matchId) {
-      if(confirm("この戦績データを削除しますか？")) {
-        matches = matches.filter(m => m.id !== matchId);
-        saveMatches();
-        renderAll();
-        updateBoardDateTime();
-        showToast("戦績データを削除しました。");
-      }
-    }
-
+    // プレイヤー手動追加 (基本版)
     function addPlayerHandy() {
       const nameInput = document.getElementById('new-player-name');
       const name = nameInput.value.trim();
@@ -1261,64 +1252,6 @@
       }
 
       document.querySelector('.grid').className = "grid grid-cols-1 lg:grid-cols-12 gap-6";
-    }
-
-    // --- 【超強力】画像が絶対につぶれない & 全員写るPNGダウンロード機能 ---
-    function exportDashboardToPNG() {
-      showToast("撮影用に最適化中... しばらくお待ちください。");
-      
-      const target = document.getElementById('dashboard-capture');
-      const gridContainer = document.getElementById('players-grid-container');
-      
-      // 1. スクロール制限を撮影時のみ解除するため一時保存
-      const originalMaxHeight = gridContainer.style.maxHeight;
-      const originalOverflow = gridContainer.style.overflowY;
-      
-      // 2. html2canvasのオプション設定（CORS対応、倍率設定、仮想ウインドウ幅の固定）
-      const options = {
-        scale: 2, // 解像度倍率 (十分高画質な2倍)
-        useCORS: true, // アバター画像対策
-        backgroundColor: '#f7f8fa',
-        logging: false,
-        windowWidth: 1240, // 撮影時の仮想ブラウザ横幅を1240pxのPCサイズに騙す（超重要！）
-        onclone: (clonedDoc) => {
-          // クローンされた仮想DOMの中だけで、スクロール制限のTailwindクラスを徹底解除！
-          const clonedGrid = clonedDoc.getElementById('players-grid-container');
-          if (clonedGrid) {
-            clonedGrid.style.maxHeight = 'none';
-            clonedGrid.style.overflowY = 'visible';
-            clonedGrid.classList.remove('max-h-[500px]', 'overflow-y-auto');
-          }
-          // スマホでの潰れを完全に解決するため、撮影対象の外枠コンテナの幅を1200pxに固定して展開
-          const clonedCapture = clonedDoc.getElementById('dashboard-capture');
-          if (clonedCapture) {
-            clonedCapture.style.width = '1200px';
-          }
-        }
-      };
-
-      // 仮想DOMの描画確定をしっかり待つための遅延タイマー
-      setTimeout(() => {
-        html2canvas(target, options).then(canvas => {
-          try {
-            const imgData = canvas.toDataURL('image/png');
-            const link = document.createElement('a');
-            const d = new Date();
-            const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-            
-            link.download = `7shades_stats_${dateStr}.png`;
-            link.href = imgData;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            showToast("高画質PNG画像の保存に成功しました！全員が綺麗に収まっています。");
-          } catch (err) {
-            console.error(err);
-            alert("画像生成中にエラーが発生しました。");
-          }
-        });
-      }, 250);
     }
 
     function exportToCSV() {
