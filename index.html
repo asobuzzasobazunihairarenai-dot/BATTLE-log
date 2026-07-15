@@ -40,15 +40,19 @@
         </div>
       </div>
       
-      <!-- 権限シミュレーター (体験用) -->
-      <div class="flex items-center bg-slate-800 p-1.5 rounded-full border border-slate-700">
-        <span class="text-xs px-3 text-slate-300 font-medium">現在の操作ロール:</span>
-        <button id="role-tester-btn" onclick="switchRole('tester')" class="text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 bg-indigo-600 text-white shadow-sm">
-          <i class="fa-solid fa-user-ninja mr-1"></i> 一般テスター
-        </button>
-        <button id="role-admin-btn" onclick="switchRole('admin')" class="text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 text-slate-400 hover:text-white ml-1">
-          <i class="fa-solid fa-user-shield mr-1"></i> 管理者
-        </button>
+      <!-- 権限シミュレーター (体験用・パスワード認証付き) -->
+      <div class="flex flex-col items-end gap-1">
+        <div class="flex items-center bg-slate-800 p-1.5 rounded-full border border-slate-700">
+          <span class="text-xs px-3 text-slate-300 font-medium">現在の操作ロール:</span>
+          <button id="role-tester-btn" onclick="switchRole('tester')" class="text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 bg-indigo-600 text-white shadow-sm">
+            <i class="fa-solid fa-user-ninja mr-1"></i> 一般テスター
+          </button>
+          <button id="role-admin-btn" onclick="trySwitchToAdmin()" class="text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 text-slate-400 hover:text-white ml-1">
+            <i class="fa-solid fa-user-shield mr-1"></i> 管理者
+          </button>
+        </div>
+        <!-- バージョン番号表示（更新確認用） -->
+        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607152153</span>
       </div>
     </div>
   </header>
@@ -276,7 +280,7 @@
                 <i class="fa-solid fa-user-shield text-indigo-600"></i>
                 <span>管理者コンソール</span>
               </h2>
-              <p class="text-xs text-gray-500">戦績の承認作業、データのエクスポート、データの全消去が可能です。</p>
+              <p class="text-xs text-gray-500">戦績の承認作業、データのエクスポート、パスワード変更が可能です。</p>
             </div>
             
             <!-- スプシ出力ボタン -->
@@ -321,6 +325,32 @@
             </div>
           </div>
 
+          <!-- 管理者パスワード変更セクション -->
+          <div class="border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-key text-indigo-600"></i> 管理者パスワードの変更
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div>
+                <label class="block text-[10px] font-bold text-gray-400 mb-1">現在のパスワード</label>
+                <input type="password" id="change-pwd-current" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400" placeholder="現在のPW (初期: 0000)">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-gray-400 mb-1">新しいパスワード</label>
+                <input type="password" id="change-pwd-new" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400" placeholder="新しいPW">
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="flex-1">
+                  <label class="block text-[10px] font-bold text-gray-400 mb-1">新しいパスワード（確認）</label>
+                  <input type="password" id="change-pwd-confirm" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400" placeholder="確認用入力">
+                </div>
+                <button type="button" onclick="changeAdminPassword()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3.5 rounded-lg transition h-[34px] shrink-0">
+                  パスワード変更
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- システム初期化 -->
           <div class="border-t border-dashed border-gray-100 pt-4 flex justify-between items-center">
             <span class="text-xs text-slate-400">データの初期化（テスト用初期値に戻す）:</span>
@@ -336,7 +366,7 @@
 
   </main>
 
-  <!-- 履歴コピペ選択用モーダル -->
+  <!-- 過去履歴コピペ選択用モーダル -->
   <div id="history-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
       <div class="flex justify-between items-center border-b pb-3">
@@ -357,6 +387,34 @@
     </div>
   </div>
 
+  <!-- 管理者パスワード入力モーダル（一般申請荒らし防止用） -->
+  <div id="password-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-slate-800 flex items-center gap-1.5"><i class="fa-solid fa-lock text-indigo-600"></i>管理者認証</h3>
+        <button onclick="closePasswordModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-xs text-gray-500 leading-relaxed">
+        管理者に切り替えるには暗証パスワードを入力してください。<br>
+        <span class="text-indigo-600 font-bold">※デフォルトの初期パスワードは 「0000」 です。</span>
+      </p>
+      <div>
+        <input type="password" id="admin-password-input" class="w-full text-sm bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-500" placeholder="パスワードを入力">
+        <p id="password-error" class="text-xs text-rose-500 hidden mt-1.5 flex items-center gap-1">
+          <i class="fa-solid fa-circle-exclamation"></i> パスワードが違います
+        </p>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closePasswordModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 px-4 rounded-xl transition">
+          キャンセル
+        </button>
+        <button onclick="verifyAdminPassword()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-md transition">
+          認証する
+        </button>
+      </div>
+    </div>
+  </div>
+
   <footer class="bg-slate-900 text-slate-500 text-xs py-10 mt-12 border-t border-slate-800">
     <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
       <p>7 SHADES OF S:EVEN Test-play Stat Management System © 2026</p>
@@ -371,6 +429,9 @@
     let currentRole = "tester"; // 'tester' | 'admin'
     let memberSortKey = "playCount"; // 'playCount' | 'alphabetical'
     let searchQuery = "";
+
+    // 管理者認証用パスワード (初期値は0000、LocalStorageに保存可能)
+    let adminPassword = localStorage.getItem(STORAGE_PREFIX + "admin_password") || "0000";
 
     // カラーパレット (Discordログイン風のイニシャルアバター生成用)
     const avatarBgColors = [
@@ -433,6 +494,13 @@
 
       updateBoardDateTime();
       renderAll();
+
+      // パスワード入力フィールドのEnterキー監視
+      document.getElementById('admin-password-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          verifyAdminPassword();
+        }
+      });
     };
 
     function updateBoardDateTime() {
@@ -481,7 +549,68 @@
       }
     }
 
-    // --- ロール（権限）の変更 ---
+    // --- ロール（権限）の変更とパスワード制限 ---
+    function trySwitchToAdmin() {
+      if (currentRole === 'admin') {
+        // すでに管理者ならパスワードなしでテスターへ戻せる
+        switchRole('tester');
+        return;
+      }
+      
+      // パスワードモーダルを表示
+      document.getElementById('admin-password-input').value = "";
+      document.getElementById('password-error').classList.add('hidden');
+      document.getElementById('password-modal').classList.remove('hidden');
+      setTimeout(() => {
+        document.getElementById('admin-password-input').focus();
+      }, 100);
+    }
+
+    function closePasswordModal() {
+      document.getElementById('password-modal').classList.add('hidden');
+    }
+
+    function verifyAdminPassword() {
+      const inputVal = document.getElementById('admin-password-input').value;
+      const errorEl = document.getElementById('password-error');
+
+      if (inputVal === adminPassword) {
+        closePasswordModal();
+        switchRole('admin');
+      } else {
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    // パスワード変更処理
+    function changeAdminPassword() {
+      const currentPwd = document.getElementById('change-pwd-current').value;
+      const newPwd = document.getElementById('change-pwd-new').value;
+      const confirmPwd = document.getElementById('change-pwd-confirm').value;
+
+      if (currentPwd !== adminPassword) {
+        alert("現在のパスワードが間違っています。");
+        return;
+      }
+      if (!newPwd) {
+        alert("新しいパスワードを入力してください。");
+        return;
+      }
+      if (newPwd !== confirmPwd) {
+        alert("新しいパスワードと確認用入力が一致しません。");
+        return;
+      }
+
+      adminPassword = newPwd;
+      localStorage.setItem(STORAGE_PREFIX + "admin_password", adminPassword);
+
+      document.getElementById('change-pwd-current').value = "";
+      document.getElementById('change-pwd-new').value = "";
+      document.getElementById('change-pwd-confirm').value = "";
+
+      showToast("管理者パスワードを正常に変更しました！");
+    }
+
     function switchRole(role) {
       currentRole = role;
       const testerBtn = document.getElementById('role-tester-btn');
@@ -1084,7 +1213,7 @@
         showToast("戦績を申請しました。管理者の承認をお待ちください。");
         setTimeout(() => {
           if(confirm("申請を承認するシミュレートを行いますか？\n（ロールを管理者に切り替えて承認画面へ案内します）")) {
-            switchRole('admin');
+            trySwitchToAdmin();
             scrollToSection('admin-section');
           }
         }, 800);
@@ -1102,7 +1231,16 @@
       }
     }
 
-    // プレイヤー手動追加 (基本版)
+    function deleteMatch(matchId) {
+      if(confirm("この戦績データを削除しますか？")) {
+        matches = matches.filter(m => m.id !== matchId);
+        saveMatches();
+        renderAll();
+        updateBoardDateTime();
+        showToast("戦績データを削除しました。");
+      }
+    }
+
     function addPlayerHandy() {
       const nameInput = document.getElementById('new-player-name');
       const name = nameInput.value.trim();
@@ -1252,6 +1390,66 @@
       }
 
       document.querySelector('.grid').className = "grid grid-cols-1 lg:grid-cols-12 gap-6";
+    }
+
+    // --- 【超強力】画像が絶対につぶれない & 全員写る＆文字欠けしないPNGダウンロード機能 ---
+    function exportDashboardToPNG() {
+      showToast("撮影用に最適化中... しばらくお待ちください。");
+      
+      const target = document.getElementById('dashboard-capture');
+      const gridContainer = document.getElementById('players-grid-container');
+      
+      const options = {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#f7f8fa',
+        logging: false,
+        windowWidth: 1240, // 仮想幅
+        onclone: (clonedDoc) => {
+          // スクロール制限解除
+          const clonedGrid = clonedDoc.getElementById('players-grid-container');
+          if (clonedGrid) {
+            clonedGrid.style.maxHeight = 'none';
+            clonedGrid.style.overflowY = 'visible';
+            clonedGrid.classList.remove('max-h-[500px]', 'overflow-y-auto');
+          }
+          // スマホ潰れ対策
+          const clonedCapture = clonedDoc.getElementById('dashboard-capture');
+          if (clonedCapture) {
+            clonedCapture.style.width = '1200px';
+          }
+          // html2canvas特有の「文字切れバグ」を防ぐための強制スタイル適用
+          const truncates = clonedDoc.querySelectorAll('.truncate');
+          truncates.forEach(el => {
+            el.style.overflow = 'visible';
+            el.style.textOverflow = 'clip';
+            el.style.whiteSpace = 'normal';
+            el.style.lineHeight = '1.3';
+          });
+        }
+      };
+
+      setTimeout(() => {
+        html2canvas(target, options).then(canvas => {
+          try {
+            const imgData = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            const d = new Date();
+            const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+            
+            link.download = `7shades_stats_${dateStr}.png`;
+            link.href = imgData;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast("高画質PNG画像の保存に成功しました！全員が綺麗に収まっています。");
+          } catch (err) {
+            console.error(err);
+            alert("画像生成中にエラーが発生しました。");
+          }
+        });
+      }, 250);
     }
 
     function exportToCSV() {
