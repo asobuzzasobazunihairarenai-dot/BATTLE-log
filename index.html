@@ -45,7 +45,7 @@
         </div>
         <div>
           <h1 class="text-xl font-bold tracking-wider">7 SHADES OF S:EVEN</h1>
-          <p class="text-xs text-slate-400">テストプレイ戦績管理システム (Prototype)</p>
+          <p class="text-xs text-slate-400">テストプレイ戦績管理システム</p>
         </div>
       </div>
       
@@ -61,7 +61,7 @@
           </button>
         </div>
         <!-- バージョン番号表示（更新確認用） -->
-        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161141</span>
+        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161200</span>
       </div>
     </div>
   </header>
@@ -130,7 +130,7 @@
           <!-- 参加メンバーの選択 -->
           <div>
             <div class="flex justify-between items-center mb-1.5">
-              <label class="text-xs font-bold text-gray-500">参加メンバー選択</label>
+              <label class="text-xs font-bold text-gray-500">参加メンバー選択 (複数選択)</label>
               <!-- ソート & 検索 -->
               <div class="flex gap-1.5">
                 <button type="button" onclick="toggleMemberSort('playCount')" id="sort-playcount-btn" class="text-[10px] font-bold px-2 py-1 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
@@ -151,11 +151,18 @@
             </div>
           </div>
 
-          <!-- 勝者の選択 -->
-          <div>
-            <label class="block text-xs font-bold text-gray-500 mb-1.5">勝者 (1名) を選択</label>
-            <div id="winner-selection-container" class="border border-indigo-50 rounded-xl p-2.5 bg-indigo-50/20 text-xs text-gray-400 italic text-center">
-              参加メンバーを2人以上選ぶと、ここに勝者選択ボタンが表示されます。
+          <!-- 新しい勝者の選択 (2ステップフロー) -->
+          <div class="border-t border-slate-100 pt-3">
+            <label class="block text-xs font-bold text-gray-500 mb-1.5 flex items-center justify-between">
+              <span>勝者 (1名) の選択</span>
+              <span class="text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded-full"><i class="fa-solid fa-crown mr-0.5"></i>選んだ中から1人選定</span>
+            </label>
+            <!-- 選択されたメンバーをリストアップして、その中から勝者を選ぶ -->
+            <div id="winner-step-container" class="border border-indigo-50 rounded-xl p-2.5 bg-indigo-50/20">
+              <!-- JSでメンバーがいる場合、勝者選択ボタンを一覧表示。ない場合はヘルプテキスト -->
+              <p class="text-xs text-gray-400 italic text-center py-2">
+                まずは上の一覧から、今回の対戦に参加したメンバーを選んでください。
+              </p>
             </div>
           </div>
 
@@ -197,15 +204,15 @@
             </div>
             
             <div>
-              <label class="block text-xs font-bold text-gray-500 mb-1">Discord風ユーザーID / @名 (任意)</label>
-              <input type="text" id="new-player-discord-id" oninput="updateAvatarPreview()" placeholder="例: kusunoki_7" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-400">
+              <label class="block text-xs font-bold text-gray-500 mb-1">DiscordユーザーID / @名 (任意)</label>
+              <input type="text" id="new-player-discord-id" oninput="updateAvatarPreview()" placeholder="例: kusunoki_7 (なければ空欄)" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-400">
             </div>
 
             <!-- アバター指定エリア (クリップボード対応) -->
             <div class="border-t border-dashed border-gray-100 pt-3 space-y-3">
               <div class="flex justify-between items-center">
                 <label class="block text-xs font-bold text-gray-500">アバター画像の設定</label>
-                <!-- プレビュー種別のテキストバッジ (エラー修正箇所) -->
+                <!-- プレビュー種別のテキストバッジ -->
                 <span id="preview-avatar-type" class="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded">仮アバター</span>
               </div>
               
@@ -310,7 +317,7 @@
                     <div class="text-[10px] text-slate-400 font-bold" id="total-players-badge">登録者: 30人</div>
                   </div>
 
-                  <!-- プレイヤーグリッド一覧 (アップロード画像のようにグリッド状に配置) -->
+                  <!-- プレイヤーグリッド一覧 -->
                   <div id="players-grid-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-1">
                     <!-- JSで動的構築 -->
                   </div>
@@ -471,6 +478,56 @@
     </div>
   </div>
 
+  <!-- 登録プレイヤー情報の編集モーダル（管理者専用） -->
+  <div id="player-edit-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-user-pen mr-2 text-indigo-600"></i>プレイヤープロフィールの編集</h3>
+        <button onclick="closePlayerEditModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      
+      <!-- 編集対象ID用隠しフィールド -->
+      <input type="hidden" id="edit-player-id">
+      
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">ユーザー名 / 表示名 (必須)</label>
+        <input type="text" id="edit-player-name" class="w-full text-sm bg-gray-50 border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition">
+      </div>
+      
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">DiscordユーザーID / @名 (任意、なければ空欄)</label>
+        <input type="text" id="edit-player-discord-id" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-400">
+      </div>
+
+      <!-- アバター変更ペーストゾーン -->
+      <div class="border-t border-dashed border-gray-100 pt-3 space-y-3">
+        <label class="block text-xs font-bold text-gray-500">新アバター画像の設定</label>
+        
+        <div id="edit-paste-zone" tabindex="0" class="paste-zone border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50 hover:bg-slate-100/50 outline-none">
+          <div id="edit-preview-avatar-container" class="mb-2"></div>
+          <p class="text-xs font-black text-slate-700">
+            <i class="fa-solid fa-paste text-indigo-600 mr-1 animate-pulse"></i>ここをクリックして画像をペースト
+          </p>
+          <p class="text-[9px] text-slate-400 leading-normal">(スクリーンショットやコピーした画像をCtrl+Vで上書き)</p>
+        </div>
+        
+        <div class="text-xs">
+          <label class="block text-[10px] font-bold text-gray-400 mb-1">または手動でファイルからアップロード</label>
+          <input type="file" id="edit-player-avatar-file" onchange="updateEditAvatarFromFile()" accept="image/*" class="w-full text-[10px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t">
+        <button onclick="closePlayerEditModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 px-4 rounded-xl transition">
+          キャンセル
+        </button>
+        <button onclick="savePlayerEdit()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-md transition">
+          変更を保存する
+        </button>
+      </div>
+    </div>
+  </div>
+
   <footer class="bg-slate-900 text-slate-500 text-xs py-10 mt-12 border-t border-slate-800">
     <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
       <p>7 SHADES OF S:EVEN Test-play Stat Management System © 2026</p>
@@ -486,8 +543,10 @@
     let memberSortKey = "playCount"; // 'playCount' | 'alphabetical'
     let searchQuery = "";
 
-    // プレイヤーがローカルにアップロード・コピペ選択した画像データのBase64キャッシュ
+    // プレイヤー追加用の一時Base64
     let tempAvatarBase64 = "";
+    // プレイヤー編集用の一時Base64
+    let tempEditAvatarBase64 = "";
 
     // 管理者認証用パスワード (初期値は0000、LocalStorageに保存可能)
     let adminPassword = localStorage.getItem(STORAGE_PREFIX + "admin_password") || "0000";
@@ -498,41 +557,41 @@
       '#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e67e22'
     ];
 
-    // デフォルトプレイヤーデータ (アップロード画像から再現)
+    // デフォルトプレイヤーデータ（IDがないデフォルトは""にする）
     const defaultPlayers = [
       { id: "p1", name: "Shiina", discordId: "shiina_7", avatar: "", customTriangleColor: "" },
       { id: "p2", name: "sinn", discordId: "sinn_cos", avatar: "", customTriangleColor: "" },
       { id: "p3", name: "YGM", discordId: "ygm_01", avatar: "", customTriangleColor: "" },
       { id: "p4", name: "Taka", discordId: "taka_good", avatar: "", customTriangleColor: "" },
-      { id: "p5", name: "いっけるいな", discordId: "ikkeru", avatar: "", customTriangleColor: "" },
-      { id: "p6", name: "クスノキ", discordId: "kusunoki", avatar: "", customTriangleColor: "" },
-      { id: "p7", name: "sadasachi", discordId: "sada", avatar: "", customTriangleColor: "" },
-      { id: "p8", name: "和太鼓", discordId: "wadaiko", avatar: "", customTriangleColor: "" },
-      { id: "p9", name: "ハリネズミ", discordId: "harinezumi", avatar: "", customTriangleColor: "" },
-      { id: "p10", name: "トム", discordId: "tom_seven", avatar: "", customTriangleColor: "" },
-      { id: "p11", name: "こぎみゅん", discordId: "cogimyun", avatar: "", customTriangleColor: "" },
-      { id: "p12", name: "ころお", discordId: "koroo_discord", avatar: "", customTriangleColor: "" },
-      { id: "p13", name: "うさるこ", discordId: "usaruko", avatar: "", customTriangleColor: "" },
-      { id: "p14", name: "エルネスト", discordId: "ernesto", avatar: "", customTriangleColor: "" },
-      { id: "p15", name: "影虎", discordId: "kagetora", avatar: "", customTriangleColor: "" },
-      { id: "p16", name: "セン", discordId: "sen_12", avatar: "", customTriangleColor: "" },
-      { id: "p17", name: "Kalos", discordId: "kalos_shades", avatar: "", customTriangleColor: "" },
-      { id: "p18", name: "KqrN0", discordId: "kqrn0_play", avatar: "", customTriangleColor: "" },
-      { id: "p19", name: "えーくん", discordId: "e_kun", avatar: "", customTriangleColor: "" },
-      { id: "p20", name: "つきあかり", discordId: "tsukiakari", avatar: "", customTriangleColor: "" },
-      { id: "p21", name: "siri", discordId: "siri_virtual", avatar: "", customTriangleColor: "" },
-      { id: "p22", name: "ダディ", discordId: "daddy_tester", avatar: "", customTriangleColor: "" },
-      { id: "p23", name: "霞ゆず", discordId: "yuzu_kasumi", avatar: "", customTriangleColor: "" },
-      { id: "p24", name: "ねこぼた", discordId: "nekobota", avatar: "", customTriangleColor: "" },
-      { id: "p25", name: "さりぼー", discordId: "saribow", avatar: "", customTriangleColor: "" },
-      { id: "p26", name: "owo_livia", discordId: "livia_owo", avatar: "", customTriangleColor: "" },
-      { id: "p27", name: "LAOSHI", discordId: "laoshi_shades", avatar: "", customTriangleColor: "" },
-      { id: "p28", name: "氷牙", discordId: "hyoga_ice", avatar: "", customTriangleColor: "" },
-      { id: "p29", name: "yUneshi", discordId: "yuneshi", avatar: "", customTriangleColor: "" },
-      { id: "p30", name: "ヤマダ", discordId: "yamada_shades", avatar: "", customTriangleColor: "" }
+      { id: "p5", name: "いっけるいな", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p6", name: "クスノキ", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p7", name: "sadasachi", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p8", name: "和太鼓", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p9", name: "ハリネズミ", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p10", name: "トム", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p11", name: "こぎみゅん", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p12", name: "ころお", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p13", name: "うさるこ", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p14", name: "エルネスト", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p15", name: "影虎", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p16", name: "セン", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p17", name: "Kalos", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p18", name: "KqrN0", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p19", name: "えーくん", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p20", name: "つきあかり", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p21", name: "siri", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p22", name: "ダディ", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p23", name: "霞ゆず", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p24", name: "ねこぼた", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p25", name: "さりぼー", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p26", name: "owo_livia", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p27", name: "LAOSHI", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p28", name: "氷牙", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p29", name: "yUneshi", discordId: "", avatar: "", customTriangleColor: "" },
+      { id: "p30", name: "ヤマダ", discordId: "", avatar: "", customTriangleColor: "" }
     ];
 
-    // デフォルト対戦履歴データ (画像の内容を完璧にシミュレート)
+    // デフォルト対戦履歴データ
     const defaultMatches = [
       { id: "m1", date: "2026-07-15", members: ["p1"], winnerId: "p1", status: "approved", createdAt: 1715760000000 },
       { id: "m2", date: "2026-07-15", members: ["p2", "p3"], winnerId: "p2", status: "approved", createdAt: 1715760100000 },
@@ -564,23 +623,32 @@
 
       // 貼り付けゾーン(paste-zone-box)のクリップボード貼り付け監視
       const pasteZone = document.getElementById('paste-zone-box');
-      
       pasteZone.addEventListener('paste', function(e) {
-        handlePasteEvent(e);
+        handlePasteEvent(e, false);
       });
       
+      // 編集用貼り付けゾーン(edit-paste-zone)の監視
+      const editPasteZone = document.getElementById('edit-paste-zone');
+      editPasteZone.addEventListener('paste', function(e) {
+        handlePasteEvent(e, true);
+      });
+
       // ドキュメント全体でのPaste監視
       document.addEventListener('paste', function(e) {
         const activeTag = document.activeElement.tagName.toLowerCase();
-        if (activeTag === 'input' && document.activeElement.type !== 'file') {
+        // 通常の文字入力欄にいる時はコピペ画像を妨げないように
+        if (activeTag === 'input' && document.activeElement.id !== 'new-player-discord-id' && document.activeElement.id !== 'edit-player-discord-id') {
           return; 
         }
-        handlePasteEvent(e);
+        
+        // 編集モーダルが開いている場合は編集用、そうでない場合は追加用へ処理
+        const editModalOpen = !document.getElementById('player-edit-modal').classList.contains('hidden');
+        handlePasteEvent(e, editModalOpen);
       });
     };
 
     // クリップボードからの貼り付けイベント処理
-    function handlePasteEvent(e) {
+    function handlePasteEvent(e, isEdit = false) {
       const items = (e.clipboardData || e.originalEvent.clipboardData).items;
       let imageFound = false;
 
@@ -589,9 +657,14 @@
           const blob = items[i].getAsFile();
           const reader = new FileReader();
           reader.onload = function(event) {
-            tempAvatarBase64 = event.target.result;
-            updateAvatarPreview();
-            showToast("アバター画像をコピペから取得しました！");
+            if (isEdit) {
+              tempEditAvatarBase64 = event.target.result;
+              updateEditAvatarPreview();
+            } else {
+              tempAvatarBase64 = event.target.result;
+              updateAvatarPreview();
+            }
+            showToast("アバター画像をクリップボードから貼り付けました！");
           };
           reader.readAsDataURL(blob);
           imageFound = true;
@@ -599,7 +672,7 @@
         }
       }
       
-      if (!imageFound && e.currentTarget && e.currentTarget.id === 'paste-zone-box') {
+      if (!imageFound && e.currentTarget && (e.currentTarget.id === 'paste-zone-box' || e.currentTarget.id === 'edit-paste-zone')) {
         showToast("貼り付けられたデータに画像が見つかりませんでした。");
       }
     }
@@ -728,6 +801,7 @@
         adminSection.classList.add('hidden');
         playerAddLock.classList.remove('hidden'); // テスター：追加ツールをがっちりロック
       }
+      renderAll(); // 各種表示ボタン（編集ボタン等）を切り替えるため再描画
       showToast(`操作権限を「${role === 'admin' ? '管理者' : '一般テスター'}」に切り替えました。`);
     }
 
@@ -809,13 +883,13 @@
       document.getElementById('total-players-badge').innerText = `登録者: ${players.length}人`;
     }
 
-    // アバターゲット用の汎用ヘルパー（本物の画像、コピペ画像、イニシャルを判定）
+    // アバターゲット用の汎用ヘルパー
     function getPlayerAvatarSrc(player) {
       if (player.avatar && player.avatar.trim() !== "") {
         return player.avatar;
       }
       
-      // 画像指定がない場合はDicebearのロボット
+      // 画像指定がない、かつIDがある場合はDicebearのロボット
       if (player.discordId && player.discordId.trim() !== "") {
         const cleanId = player.discordId.trim().toLowerCase();
         return `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanId)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
@@ -884,17 +958,24 @@
           </div>
         `;
         
+        // Discord IDがない場合は非表示（ブランク）
+        const discordTagHtml = player.discordId && player.discordId.trim() !== "" 
+          ? `<div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>` 
+          : '';
+
         const row = document.createElement('div');
         row.className = "p-2 rounded-xl bg-slate-50 border border-slate-100 hover:shadow-sm transition grid grid-cols-12 gap-1 items-center";
         row.innerHTML = `
+          <!-- 左側：バッジ付きアバター ＋ 名前 (8カラム) -->
           <div class="col-span-8 flex items-center gap-2.5 min-w-0">
             ${avatarWithBadgeHtml}
             <div class="min-w-0 flex-1 flex flex-col justify-center py-0.5">
               <div class="font-black text-xs text-slate-800 truncate leading-normal" title="${player.name}">${player.name}</div>
-              <div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId || 'no_id'}</div>
+              ${discordTagHtml}
             </div>
           </div>
           
+          <!-- 右側：スタッツ (4カラム、完全に右寄せ固定) -->
           <div class="col-span-4 flex items-center justify-end gap-1 font-mono text-center shrink-0">
             <div class="w-9 bg-white rounded-lg py-1 border border-slate-100/80 shadow-sm">
               <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">勝率</span>
@@ -910,7 +991,7 @@
       });
     }
 
-    // プレイヤー個別カードの構築（グリッド境界）
+    // プレイヤー個別カードの構築（管理者専用の編集ボタンペンマークを追加）
     function renderPlayersGrid(statsList) {
       const container = document.getElementById('players-grid-container');
       container.innerHTML = "";
@@ -920,19 +1001,36 @@
       sorted.forEach(player => {
         const avatarHtml = getAvatarElementHtml(player, 10);
         
+        // Discord IDがない場合は非表示（ブランク）
+        const discordTagHtml = player.discordId && player.discordId.trim() !== "" 
+          ? `<div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>` 
+          : '';
+
+        // 管理者ロールの時のみ、名前の右隣に「編集ボタン」を表示
+        const editButtonHtml = currentRole === 'admin'
+          ? `<button onclick="openPlayerEditModal('${player.id}')" class="text-slate-400 hover:text-indigo-600 transition ml-1.5 p-0.5" title="${player.name}さんのプロフィールを編集">
+               <i class="fa-solid fa-user-gear text-xs"></i>
+             </button>`
+          : '';
+
         const card = document.createElement('div');
         card.className = "bg-white border border-slate-200/80 rounded-xl p-2.5 grid grid-cols-12 gap-2 items-center hover:border-indigo-200 transition-colors shadow-sm";
         card.innerHTML = `
+          <!-- 左側領域 (7カラム分占有) -->
           <div class="col-span-7 flex items-center gap-2 min-w-0">
             <div class="shrink-0">
               ${avatarHtml}
             </div>
             <div class="min-w-0 flex-1 flex flex-col justify-center py-0.5">
-              <div class="font-black text-xs text-slate-800 truncate leading-normal" title="${player.name}">${player.name}</div>
-              <div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId || 'no_id'}</div>
+              <div class="flex items-center min-w-0">
+                <span class="font-black text-xs text-slate-800 truncate" title="${player.name}">${player.name}</span>
+                ${editButtonHtml}
+              </div>
+              ${discordTagHtml}
             </div>
           </div>
           
+          <!-- 右側領域 (5カラム分占有) -->
           <div class="col-span-5 flex items-center justify-end gap-1 font-mono text-center shrink-0">
             <div class="w-8 sm:w-10 bg-slate-50 border border-slate-100 rounded-lg py-1">
               <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">対戦</span>
@@ -977,7 +1075,7 @@
       return `
         <div class="relative rounded-full border border-slate-200 overflow-hidden shrink-0 shadow-inner bg-slate-50" style="width: ${sizePx}px; height: ${sizePx}px;" title="${tooltip}">
           ${avatarImgHtml}
-          <!-- 三角マーク -->
+          <!-- 三角マーク（右下斜めカット） -->
           <div class="absolute bottom-0 right-0 triangle-indicator" 
                style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
           </div>
@@ -985,7 +1083,7 @@
       `;
     }
 
-    // 追加フォーム内でのリアルタイムアバタープレビューの更新 (エラー安全対策済み)
+    // 追加フォーム内でのリアルタイムアバタープレビューの更新
     function updateAvatarPreview() {
       const name = document.getElementById('new-player-name').value.trim();
       const discordId = document.getElementById('new-player-discord-id').value.trim();
@@ -1004,12 +1102,11 @@
 
       if (tempAvatarBase64 !== "") {
         dummyPlayer.avatar = tempAvatarBase64;
-        typeText = "コピペ / アップロード画像";
+        typeText = "貼り付け / 画像ファイル";
       } else if (discordId !== "") {
         typeText = "Discord風ロボアバター";
       }
 
-      // バグ修正: 要素の存在をチェックする安全ガードを仕込みました
       if (previewTypeText) {
         previewTypeText.innerText = typeText;
       }
@@ -1036,7 +1133,90 @@
       }
     }
 
-    // フォーム用：メンバー一覧チェックボックス
+    // --- プレイヤー情報の編集モーダルロジック（管理者専用） ---
+    function openPlayerEditModal(playerId) {
+      const player = players.find(p => p.id === playerId);
+      if (!player) return;
+
+      document.getElementById('edit-player-id').value = player.id;
+      document.getElementById('edit-player-name').value = player.name;
+      document.getElementById('edit-player-discord-id').value = player.discordId || "";
+      document.getElementById('edit-player-avatar-file').value = "";
+      
+      // 一時アバター変数に現在のものを読み込む
+      tempEditAvatarBase64 = player.avatar || "";
+      updateEditAvatarPreview();
+
+      document.getElementById('player-edit-modal').classList.remove('hidden');
+    }
+
+    function closePlayerEditModal() {
+      document.getElementById('player-edit-modal').classList.add('hidden');
+      tempEditAvatarBase64 = "";
+    }
+
+    function updateEditAvatarPreview() {
+      const name = document.getElementById('edit-player-name').value.trim();
+      const discordId = document.getElementById('edit-player-discord-id').value.trim();
+      const previewContainer = document.getElementById('edit-preview-avatar-container');
+
+      const dummyPlayer = {
+        name: name || "サンプル",
+        discordId: discordId,
+        avatar: tempEditAvatarBase64,
+        matchesCount: 0,
+        customTriangleColor: ""
+      };
+
+      if (previewContainer) {
+        const avatarHtml = getAvatarElementHtml(dummyPlayer, 10);
+        previewContainer.innerHTML = avatarHtml;
+      }
+    }
+
+    function updateEditAvatarFromFile() {
+      const fileInput = document.getElementById('edit-player-avatar-file');
+      if (fileInput.files && fileInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          tempEditAvatarBase64 = e.target.result;
+          updateEditAvatarPreview();
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+      }
+    }
+
+    // 編集内容の保存
+    function savePlayerEdit() {
+      const id = document.getElementById('edit-player-id').value;
+      const name = document.getElementById('edit-player-name').value.trim();
+      const discordId = document.getElementById('edit-player-discord-id').value.trim();
+
+      if (!name) {
+        alert("名前を入力してください。");
+        return;
+      }
+
+      const playerIdx = players.findIndex(p => p.id === id);
+      if (playerIdx !== -1) {
+        // 重複チェック（自分自身以外の同名プレイヤーがいないか）
+        if (players.some((p, idx) => p.name === name && idx !== playerIdx)) {
+          alert("同じ名前のプレイヤーが既に登録されています。");
+          return;
+        }
+
+        players[playerIdx].name = name;
+        players[playerIdx].discordId = discordId;
+        players[playerIdx].avatar = tempEditAvatarBase64; // コピペ、またはアップロードしたBase64を反映
+
+        savePlayers();
+        renderAll();
+        closePlayerEditModal();
+        showToast(`「${name}」さんのプロフィールを更新しました！`);
+      }
+    }
+
+    // --- フォーム用：メンバー一覧チェックボックス ---
     let selectedMemberIds = [];
     function renderMemberSelection(statsList) {
       const container = document.getElementById('members-selection-container');
@@ -1093,20 +1273,29 @@
       renderMemberSelection(Object.values(stats));
     }
 
-    // 勝者選択ラジオボタン
+    // 勝者選択ラジオボタン（2ステップ：選ばれたメンバーリストを構築し、その中から勝者をタップするフロー）
     let selectedWinnerId = null;
     function renderWinnerSelection() {
-      const container = document.getElementById('winner-selection-container');
+      const container = document.getElementById('winner-step-container');
       container.innerHTML = "";
 
       if (selectedMemberIds.length < 1) {
         container.className = "border border-indigo-50 rounded-xl p-2.5 bg-indigo-50/20 text-xs text-gray-400 italic text-center";
-        container.innerText = "参加メンバーを1名以上選ぶと、ここに勝者選択ボタンが表示されます。";
+        container.innerText = "上部のチェックボックスから、参加メンバーを選択してください。";
         selectedWinnerId = null;
         return;
       }
 
-      container.className = "grid grid-cols-2 gap-2";
+      // ステップ2の勝者ボタンリストをグリッドで配置
+      container.className = "space-y-2 border border-indigo-100 rounded-xl p-3 bg-indigo-50/30";
+      
+      const titleLabel = document.createElement('div');
+      titleLabel.className = "text-[10px] text-slate-500 font-bold mb-1.5 flex items-center gap-1";
+      titleLabel.innerHTML = `<i class="fa-solid fa-arrow-down-long text-indigo-500"></i> この中から「勝者（1名）」をタップしてください`;
+      container.appendChild(titleLabel);
+
+      const gridDiv = document.createElement('div');
+      gridDiv.className = "grid grid-cols-2 sm:grid-cols-2 gap-2";
       
       selectedMemberIds.forEach(id => {
         const p = players.find(player => player.id === id);
@@ -1116,20 +1305,32 @@
         const btn = document.createElement('button');
         btn.type = "button";
         btn.onclick = () => selectWinner(id);
-        btn.className = `p-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 border transition ${isWinner ? 'bg-amber-100 border-amber-300 text-amber-800 shadow-sm' : 'bg-white border-gray-200 text-slate-700 hover:bg-gray-50'}`;
+        
+        // メンバーアバターを取得
+        const avatarHtml = getAvatarElementHtml(p, 6);
+
+        // 選ばれた勝者と、それ以外のメンバーでボーダーとカラーを差別化
+        btn.className = `p-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition duration-150 ${isWinner ? 'bg-amber-100/90 border-amber-400 text-amber-950 shadow-md shadow-amber-500/5 ring-1 ring-amber-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`;
         btn.innerHTML = `
-          <i class="fa-solid ${isWinner ? 'fa-crown text-amber-500' : 'fa-circle-dot text-gray-300'} text-[10px]"></i>
-          <span class="truncate">${p.name}</span>
+          <div class="shrink-0 relative">
+            ${avatarHtml}
+            ${isWinner ? `<div class="absolute -top-1 -left-1 text-[8px] bg-amber-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center border border-white shadow"><i class="fa-solid fa-crown text-[6px]"></i></div>` : ''}
+          </div>
+          <span class="truncate flex-1 text-left">${p.name}</span>
+          ${isWinner ? `<span class="text-[9px] text-amber-700 bg-amber-200/50 px-1.5 py-0.5 rounded-full font-black scale-90">WINNER</span>` : ''}
         `;
-        container.appendChild(btn);
+        gridDiv.appendChild(btn);
       });
 
+      container.appendChild(gridDiv);
+
+      // 自動選定ガード：1人だけ選択されている場合は、自動で勝者に決定
       if (selectedMemberIds.length === 1) {
         if (selectedWinnerId !== selectedMemberIds[0]) {
           selectWinner(selectedMemberIds[0]);
         }
       } else if (selectedWinnerId && !selectedMemberIds.includes(selectedWinnerId)) {
-        selectedWinnerId = null;
+        selectedWinnerId = null; // メンバーリストから勝者が外されたら解除
       }
     }
 
@@ -1327,7 +1528,7 @@
         return;
       }
       if (!selectedWinnerId) {
-        alert("勝者を1名選択してください。");
+        alert("勝者を1名選択してください（クラウンを点灯させてください）。");
         return;
       }
 
@@ -1411,7 +1612,7 @@
         const newP = {
           id: "p_" + Date.now(),
           name: name,
-          discordId: discordId || name.toLowerCase() + "_shades",
+          discordId: discordId, // なければブランクのまま保存
           avatar: finalAvatar,
           customTriangleColor: ""
         };
@@ -1444,7 +1645,7 @@
       const dIdInput = document.getElementById('new-player-discord-id');
       const discordId = dIdInput.value.trim();
       if (!discordId) {
-        alert("Discord風ID（英数字のID）を入力してください。");
+        alert("DiscordユーザーID（英数字のID）を入力してください。");
         return;
       }
 
@@ -1600,7 +1801,7 @@
     function exportToCSV() {
       const approvedList = matches.filter(m => m.status === 'approved').sort((a,b) => a.createdAt - b.createdAt);
       if (approvedList.length === 0) {
-        alert("エクスポートできる承認済み戦績がありません。");
+        alert("エポートできる承認済み戦績がありません。");
         return;
       }
 
