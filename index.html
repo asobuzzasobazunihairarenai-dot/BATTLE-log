@@ -69,8 +69,8 @@
             <i class="fa-solid fa-user-shield mr-1"></i> 管理者
           </button>
         </div>
-        <!-- バージョン番号表示（更新確認用） -->
-        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161455</span>
+        <!-- バージョン番号表示（本日・現時刻に最新アップデート） -->
+        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161458</span>
       </div>
     </div>
   </header>
@@ -665,7 +665,7 @@
       { id: "m1", date: "2026-07-15", members: ["p1"], winnerId: "p1", status: "approved", createdAt: 1715760000000 },
       { id: "m2", date: "2026-07-15", members: ["p2", "p3"], winnerId: "p2", status: "approved", createdAt: 1715760100000 },
       { id: "m3", date: "2026-07-15", members: ["p3", "p2", "p18"], winnerId: "p3", status: "approved", createdAt: 1715760200000 },
-      { id: "m4", date: "2026-07-15", members: ["p8", "p9", "p10"], winnerId: "p9", status: "pending", createdAt: 1715760300000 }
+      { id: "m4", date: "2026-07-15", members: ["p8", "p9", "p10"], winnerId: "p9", status: "pending", inCreated: 1715760300000 }
     ];
 
     // アプリ状態
@@ -742,6 +742,7 @@
       localStorage.setItem(STORAGE_PREFIX + "players", JSON.stringify(players));
     }
 
+    // ドキュメント全体でのPaste監視
     function saveMatches() {
       localStorage.setItem(STORAGE_PREFIX + "matches", JSON.stringify(matches));
     }
@@ -752,19 +753,6 @@
 
       if (loadedPlayers) {
         players = JSON.parse(loadedPlayers);
-        // 【超重要フォールバック】
-        // 古いバージョンの LocalStorage に status フィールド（approved）がないプレイヤーが存在する場合、
-        // フィルターで消えて「0人」になるのを防ぐため、自動的に "approved" を付与します。
-        let needSave = false;
-        players.forEach(p => {
-          if (!p.status) {
-            p.status = "approved";
-            needSave = true;
-          }
-        });
-        if (needSave) {
-          savePlayers();
-        }
       } else {
         players = [...defaultPlayers];
         savePlayers();
@@ -772,16 +760,6 @@
 
       if (loadedMatches) {
         matches = JSON.parse(loadedMatches);
-        let needSave = false;
-        matches.forEach(m => {
-          if (!m.status) {
-            m.status = "approved";
-            needSave = true;
-          }
-        });
-        if (needSave) {
-          saveMatches();
-        }
       } else {
         matches = [...defaultMatches];
         saveMatches();
@@ -1174,7 +1152,7 @@
       });
     }
 
-    // アバターHTML作成のヘルパー
+    // アバターHTML作成 of ヘルパー
     function getAvatarElementHtml(player, sizeClassNum) {
       const sizePx = sizeClassNum * 4;
       const trigSize = Math.max(4, Math.floor(sizePx * 0.35));
@@ -1878,6 +1856,7 @@
       }
     }
 
+    // ドキュメント全体でのPaste監視
     function deleteMatch(matchId) {
       showAppConfirmModal(
         "戦績データの削除",
