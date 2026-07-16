@@ -61,7 +61,7 @@
           </button>
         </div>
         <!-- バージョン番号表示（更新確認用） -->
-        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161200</span>
+        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161204</span>
       </div>
     </div>
   </header>
@@ -81,12 +81,12 @@
           <i class="fa-solid fa-bell-ring fa-bounce"></i>
         </div>
         <div>
-          <h3 class="font-bold text-amber-900">未承認の戦績申請があります</h3>
-          <p class="text-xs text-amber-700">プレイヤーから申請された戦績が <span id="pending-count" class="font-bold underline text-sm">0</span> 件あります。確認・承認を行ってください。</p>
+          <h3 class="font-bold text-amber-900">未承認の申請があります</h3>
+          <p class="text-xs text-amber-700">戦績申請、新規登録、編集申請など、管理者の確認待ちが <span id="pending-count" class="font-bold underline text-sm">0</span> 件あります。</p>
         </div>
       </div>
       <button onclick="scrollToSection('admin-section')" class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2 px-4 rounded-lg shadow transition">
-        承認画面へ移動する <i class="fa-solid fa-arrow-down ml-1"></i>
+        承認コンソールへ <i class="fa-solid fa-arrow-down ml-1"></i>
       </button>
     </div>
 
@@ -172,31 +172,16 @@
           </button>
         </section>
 
-        <!-- ② クイックプレイヤー追加ツール (管理者権限がある場合のみ開放) -->
+        <!-- ② クイックプレイヤー追加ツール (管理者承認制) -->
         <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 relative overflow-hidden">
-          
-          <!-- 一般テスター向けのロック画面オーバーレイ -->
-          <div id="player-add-lock" class="absolute inset-0 bg-slate-900/10 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center p-6 text-center">
-            <div class="bg-white p-5 rounded-2xl shadow-xl max-w-[280px] border border-slate-100 space-y-3 flex flex-col items-center">
-              <div class="bg-rose-100 text-rose-600 w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-inner">
-                <i class="fa-solid fa-lock"></i>
-              </div>
-              <h3 class="font-bold text-slate-800 text-sm">メンバー追加は管理者限定</h3>
-              <p class="text-[11px] text-slate-500 leading-relaxed">
-                新規プレイヤーの追加はホスト管理者のみ可能です。ヘッダーから切り替えてください。<br>
-                <span class="text-indigo-600 font-bold">(初期PW: 0000)</span>
-              </p>
-              <button onclick="trySwitchToAdmin()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold text-[10px] py-1.5 px-3 rounded-lg transition">
-                管理者に切り替える
-              </button>
-            </div>
-          </div>
-
           <div class="space-y-4">
-            <h2 class="font-bold text-md text-slate-800 flex items-center gap-2 border-b pb-2.5 border-gray-100">
-              <i class="fa-solid fa-user-plus text-indigo-600"></i>
-              <span>プレイヤーの追加 (管理者専用)</span>
-            </h2>
+            <div class="flex justify-between items-center border-b pb-2.5 border-gray-100">
+              <h2 class="font-bold text-md text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-user-plus text-indigo-600"></i>
+                <span id="player-add-title">プレイヤー登録の申請</span>
+              </h2>
+              <span id="player-add-badge" class="bg-indigo-100 text-indigo-800 text-[9px] font-bold px-1.5 py-0.5 rounded-full">一般申請用</span>
+            </div>
             
             <div>
               <label class="block text-xs font-bold text-gray-500 mb-1">ユーザー名 / 表示名 (必須)</label>
@@ -243,7 +228,7 @@
             </div>
 
             <button type="button" onclick="addPlayerHandy()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-lg shadow-indigo-600/10">
-              この内容でプレイヤーを追加する
+              <span id="player-submit-btn-text">プレイヤーの追加申請 (承認待ち)</span>
             </button>
           </div>
         </section>
@@ -352,13 +337,35 @@
             </button>
           </div>
 
-          <!-- 承認待ち申請リスト -->
+          <!-- ① 承認待ち戦績リスト -->
           <div>
             <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
               <span class="w-2 h-2 rounded-full bg-amber-500 block"></span>
-              承認待ちの申請一覧 (<span id="pending-list-count" class="font-bold">0</span>)
+              承認待ちの戦績申請 (<span id="pending-list-count" class="font-bold">0</span>)
             </h3>
             <div id="pending-matches-container" class="space-y-3">
+              <!-- JSで動的構築 -->
+            </div>
+          </div>
+
+          <!-- ② 承認待ちの新規プレイヤー登録リスト -->
+          <div>
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-indigo-500 block"></span>
+              承認待ちのプレイヤー登録申請 (<span id="pending-players-count" class="font-bold">0</span>)
+            </h3>
+            <div id="pending-players-container" class="space-y-3">
+              <!-- JSで動的構築 -->
+            </div>
+          </div>
+
+          <!-- ③ 承認待ちのプロフィール編集申請リスト -->
+          <div>
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-pink-500 block"></span>
+              承認待ちのプロフィール編集申請 (<span id="pending-edits-count" class="font-bold">0</span>)
+            </h3>
+            <div id="pending-edits-container" class="space-y-3">
               <!-- JSで動的構築 -->
             </div>
           </div>
@@ -403,7 +410,7 @@
                 <input type="password" id="change-pwd-new" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400" placeholder="新しいPW">
               </div>
               <div class="flex items-center gap-2">
-                <div class="flex-1">
+                <div class="flex-grow">
                   <label class="block text-[10px] font-bold text-gray-400 mb-1">新しいパスワード（確認）</label>
                   <input type="password" id="change-pwd-confirm" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400" placeholder="確認用入力">
                 </div>
@@ -478,7 +485,7 @@
     </div>
   </div>
 
-  <!-- 登録プレイヤー情報の編集モーダル（管理者専用） -->
+  <!-- 登録プレイヤー情報の編集モーダル -->
   <div id="player-edit-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
       <div class="flex justify-between items-center border-b pb-3">
@@ -522,7 +529,7 @@
           キャンセル
         </button>
         <button onclick="savePlayerEdit()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-md transition">
-          変更を保存する
+          <span id="player-edit-submit-btn-text">変更を申請する (承認待ち)</span>
         </button>
       </div>
     </div>
@@ -557,38 +564,38 @@
       '#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e67e22'
     ];
 
-    // デフォルトプレイヤーデータ（IDがないデフォルトは""にする）
+    // デフォルトプレイヤーデータ
     const defaultPlayers = [
-      { id: "p1", name: "Shiina", discordId: "shiina_7", avatar: "", customTriangleColor: "" },
-      { id: "p2", name: "sinn", discordId: "sinn_cos", avatar: "", customTriangleColor: "" },
-      { id: "p3", name: "YGM", discordId: "ygm_01", avatar: "", customTriangleColor: "" },
-      { id: "p4", name: "Taka", discordId: "taka_good", avatar: "", customTriangleColor: "" },
-      { id: "p5", name: "いっけるいな", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p6", name: "クスノキ", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p7", name: "sadasachi", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p8", name: "和太鼓", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p9", name: "ハリネズミ", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p10", name: "トム", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p11", name: "こぎみゅん", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p12", name: "ころお", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p13", name: "うさるこ", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p14", name: "エルネスト", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p15", name: "影虎", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p16", name: "セン", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p17", name: "Kalos", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p18", name: "KqrN0", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p19", name: "えーくん", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p20", name: "つきあかり", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p21", name: "siri", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p22", name: "ダディ", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p23", name: "霞ゆず", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p24", name: "ねこぼた", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p25", name: "さりぼー", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p26", name: "owo_livia", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p27", name: "LAOSHI", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p28", name: "氷牙", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p29", name: "yUneshi", discordId: "", avatar: "", customTriangleColor: "" },
-      { id: "p30", name: "ヤマダ", discordId: "", avatar: "", customTriangleColor: "" }
+      { id: "p1", name: "Shiina", discordId: "shiina_7", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p2", name: "sinn", discordId: "sinn_cos", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p3", name: "YGM", discordId: "ygm_01", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p4", name: "Taka", discordId: "taka_good", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p5", name: "いっけるいな", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p6", name: "クスノキ", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p7", name: "sadasachi", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p8", name: "和太鼓", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p9", name: "ハリネズミ", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p10", name: "トム", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p11", name: "こぎみゅん", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p12", name: "ころお", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p13", name: "うさるこ", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p14", name: "エルネスト", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p15", name: "影虎", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p16", name: "セン", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p17", name: "Kalos", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p18", name: "KqrN0", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p19", name: "えーくん", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p20", name: "つきあかり", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p21", name: "siri", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p22", name: "ダディ", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p23", name: "霞ゆず", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p24", name: "ねこぼた", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p25", name: "さりぼー", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p26", name: "owo_livia", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p27", name: "LAOSHI", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p28", name: "氷牙", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p29", name: "yUneshi", discordId: "", avatar: "", customTriangleColor: "", status: "approved" },
+      { id: "p30", name: "ヤマダ", discordId: "", avatar: "", customTriangleColor: "", status: "approved" }
     ];
 
     // デフォルト対戦履歴データ
@@ -712,6 +719,17 @@
       localStorage.setItem(STORAGE_PREFIX + "matches", JSON.stringify(matches));
     }
 
+    function resetToDefaultData() {
+      if(confirm("データをテスト用の初期状態に戻してもよろしいですか？（現在のすべての追加プレイヤーと戦績がリセットされます）")) {
+        players = JSON.parse(JSON.stringify(defaultPlayers));
+        matches = JSON.parse(JSON.stringify(defaultMatches));
+        savePlayers();
+        saveMatches();
+        renderAll();
+        showToast("データを初期状態にリセットしました。");
+      }
+    }
+
     // --- ロール（権限）の変更とパスワード制限 ---
     function trySwitchToAdmin() {
       if (currentRole === 'admin') {
@@ -780,7 +798,11 @@
       const formBadge = document.getElementById('form-badge');
       const submitBtnText = document.getElementById('submit-btn-text');
       const adminSection = document.getElementById('admin-section');
-      const playerAddLock = document.getElementById('player-add-lock');
+      
+      const playerAddTitle = document.getElementById('player-add-title');
+      const playerAddBadge = document.getElementById('player-add-badge');
+      const playerSubmitBtnText = document.getElementById('player-submit-btn-text');
+      const playerEditSubmitBtnText = document.getElementById('player-edit-submit-btn-text');
 
       if (role === 'admin') {
         adminBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 bg-indigo-600 text-white shadow-sm";
@@ -790,7 +812,13 @@
         formBadge.className = "bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
         submitBtnText.innerText = "戦績を即時登録 (承認済み)";
         adminSection.classList.remove('hidden');
-        playerAddLock.classList.add('hidden'); // 管理者：追加ツールのロックを外す
+        
+        // プレイヤー追加フォームの文言切替（管理者）
+        playerAddTitle.innerText = "プレイヤーの直接登録";
+        playerAddBadge.innerText = "管理者権限";
+        playerAddBadge.className = "bg-rose-100 text-rose-800 text-[9px] font-bold px-1.5 py-0.5 rounded-full";
+        playerSubmitBtnText.innerText = "プレイヤーを直接登録する (即時承認)";
+        if(playerEditSubmitBtnText) playerEditSubmitBtnText.innerText = "変更を保存する (即時反映)";
       } else {
         testerBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 bg-indigo-600 text-white shadow-sm";
         adminBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 text-slate-400 hover:text-white ml-1";
@@ -799,7 +827,13 @@
         formBadge.className = "bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
         submitBtnText.innerText = "戦績を申請する (承認待ちへ)";
         adminSection.classList.add('hidden');
-        playerAddLock.classList.remove('hidden'); // テスター：追加ツールをがっちりロック
+        
+        // プレイヤー追加フォームの文言切替（テスター）
+        playerAddTitle.innerText = "プレイヤー登録の申請";
+        playerAddBadge.innerText = "一般申請用";
+        playerAddBadge.className = "bg-indigo-100 text-indigo-800 text-[9px] font-bold px-1.5 py-0.5 rounded-full";
+        playerSubmitBtnText.innerText = "プレイヤーの追加申請 (承認待ち)";
+        if(playerEditSubmitBtnText) playerEditSubmitBtnText.innerText = "変更を申請する (承認待ち)";
       }
       renderAll(); // 各種表示ボタン（編集ボタン等）を切り替えるため再描画
       showToast(`操作権限を「${role === 'admin' ? '管理者' : '一般テスター'}」に切り替えました。`);
@@ -808,6 +842,8 @@
     // --- 各種計算（集計）ロジック ---
     function computePlayerStats() {
       const stats = {};
+      
+      // 承認待ちプレイヤーでも戦績には起用できるが、公式集計に含めるのは approved プレイヤーのみ
       players.forEach(p => {
         stats[p.id] = {
           id: p.id,
@@ -815,6 +851,7 @@
           avatar: p.avatar,
           customTriangleColor: p.customTriangleColor,
           discordId: p.discordId,
+          status: p.status,
           matchesCount: 0,
           winsCount: 0,
           winRate: 0
@@ -864,23 +901,33 @@
       const stats = computePlayerStats();
       const statsList = Object.values(stats);
 
-      renderTop3Ranking(statsList);
-      renderPlayersGrid(statsList);
+      // ダッシュボードに表示するのは 'approved' (承認済み) プレイヤーのみ
+      const approvedStatsList = statsList.filter(p => p.status === 'approved');
+
+      renderTop3Ranking(approvedStatsList);
+      renderPlayersGrid(approvedStatsList);
+      
+      // メンバー選択画面（一般用）には、承認待ちプレイヤーも含めて表示
       renderMemberSelection(statsList);
+      
       renderAdminConsole();
 
-      const pendingCount = matches.filter(m => m.status === 'pending').length;
+      const pendingMatchesCount = matches.filter(m => m.status === 'pending').length;
+      const pendingPlayersCount = players.filter(p => p.status === 'pending').length;
+      const pendingEditsCount = players.filter(p => p.editPending && p.editPending !== null).length;
+      const totalPending = pendingMatchesCount + pendingPlayersCount + pendingEditsCount;
+
       const banner = document.getElementById('pending-banner');
-      if (pendingCount > 0) {
+      if (totalPending > 0) {
         banner.classList.remove('hidden');
-        document.getElementById('pending-count').innerText = pendingCount;
+        document.getElementById('pending-count').innerText = totalPending;
       } else {
         banner.classList.add('hidden');
       }
 
-      const totalApproved = matches.filter(m => m.status === 'approved').length;
-      document.getElementById('total-matches-count').innerText = `総プレイ承認回数: ${totalApproved}回`;
-      document.getElementById('total-players-badge').innerText = `登録者: ${players.length}人`;
+      const totalApprovedMatches = matches.filter(m => m.status === 'approved').length;
+      document.getElementById('total-matches-count').innerText = `総プレイ承認回数: ${totalApprovedMatches}回`;
+      document.getElementById('total-players-badge').innerText = `登録者: ${players.filter(p => p.status === 'approved').length}人`;
     }
 
     // アバターゲット用の汎用ヘルパー
@@ -899,11 +946,11 @@
     }
 
     // ランキングの構築（バッジをアバターに重ねて横スペースを配置制限）
-    function renderTop3Ranking(statsList) {
+    function renderTop3Ranking(approvedStatsList) {
       const container = document.getElementById('top3-ranking-container');
       container.innerHTML = "";
 
-      const sorted = [...statsList].sort((a, b) => {
+      const sorted = [...approvedStatsList].sort((a, b) => {
         if (b.winRate !== a.winRate) return b.winRate - a.winRate;
         if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount;
         return b.matchesCount - a.matchesCount;
@@ -991,12 +1038,12 @@
       });
     }
 
-    // プレイヤー個別カードの構築（管理者専用の編集ボタンペンマークを追加）
-    function renderPlayersGrid(statsList) {
+    // プレイヤー個別カードの構築（編集ボタンを全員に開放。申請中の表記対応）
+    function renderPlayersGrid(approvedStatsList) {
       const container = document.getElementById('players-grid-container');
       container.innerHTML = "";
 
-      const sorted = [...statsList].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      const sorted = [...approvedStatsList].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 
       sorted.forEach(player => {
         const avatarHtml = getAvatarElementHtml(player, 10);
@@ -1006,12 +1053,19 @@
           ? `<div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>` 
           : '';
 
-        // 管理者ロールの時のみ、名前の右隣に「編集ボタン」を表示
-        const editButtonHtml = currentRole === 'admin'
-          ? `<button onclick="openPlayerEditModal('${player.id}')" class="text-slate-400 hover:text-indigo-600 transition ml-1.5 p-0.5" title="${player.name}さんのプロフィールを編集">
-               <i class="fa-solid fa-user-gear text-xs"></i>
-             </button>`
+        // プロフィール編集の「承認待ち」バッジを表示
+        const rawPlayer = players.find(p => p.id === player.id);
+        const hasPendingEdit = rawPlayer && rawPlayer.editPending && rawPlayer.editPending !== null;
+        const pendingBadgeHtml = hasPendingEdit
+          ? `<span class="ml-1.5 px-1 py-0.5 text-[8px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-200">編集承認待ち</span>`
           : '';
+
+        // ペンマーク編集ボタンは一般・管理者ともに開放
+        const editButtonHtml = `
+          <button onclick="openPlayerEditModal('${player.id}')" class="text-slate-400 hover:text-indigo-600 transition ml-1.5 p-0.5" title="${player.name}さんのプロフィールを編集">
+            <i class="fa-solid fa-user-gear text-xs"></i>
+          </button>
+        `;
 
         const card = document.createElement('div');
         card.className = "bg-white border border-slate-200/80 rounded-xl p-2.5 grid grid-cols-12 gap-2 items-center hover:border-indigo-200 transition-colors shadow-sm";
@@ -1025,6 +1079,7 @@
               <div class="flex items-center min-w-0">
                 <span class="font-black text-xs text-slate-800 truncate" title="${player.name}">${player.name}</span>
                 ${editButtonHtml}
+                ${pendingBadgeHtml}
               </div>
               ${discordTagHtml}
             </div>
@@ -1133,7 +1188,7 @@
       }
     }
 
-    // --- プレイヤー情報の編集モーダルロジック（管理者専用） ---
+    // --- プレイヤー情報の編集モーダルロジック ---
     function openPlayerEditModal(playerId) {
       const player = players.find(p => p.id === playerId);
       if (!player) return;
@@ -1143,10 +1198,14 @@
       document.getElementById('edit-player-discord-id').value = player.discordId || "";
       document.getElementById('edit-player-avatar-file').value = "";
       
-      // 一時アバター変数に現在のものを読み込む
-      tempEditAvatarBase64 = player.avatar || "";
-      updateEditAvatarPreview();
+      // すでに承認待ちの編集データがある場合は、それをプレビューに載せる
+      tempEditAvatarBase64 = (player.editPending && player.editPending.avatar) ? player.editPending.avatar : (player.avatar || "");
+      if(player.editPending) {
+        document.getElementById('edit-player-name').value = player.editPending.name;
+        document.getElementById('edit-player-discord-id').value = player.editPending.discordId || "";
+      }
 
+      updateEditAvatarPreview();
       document.getElementById('player-edit-modal').classList.remove('hidden');
     }
 
@@ -1186,7 +1245,7 @@
       }
     }
 
-    // 編集内容の保存
+    // 編集内容の保存/申請
     function savePlayerEdit() {
       const id = document.getElementById('edit-player-id').value;
       const name = document.getElementById('edit-player-name').value.trim();
@@ -1199,20 +1258,33 @@
 
       const playerIdx = players.findIndex(p => p.id === id);
       if (playerIdx !== -1) {
-        // 重複チェック（自分自身以外の同名プレイヤーがいないか）
+        // 重複チェック
         if (players.some((p, idx) => p.name === name && idx !== playerIdx)) {
           alert("同じ名前のプレイヤーが既に登録されています。");
           return;
         }
 
-        players[playerIdx].name = name;
-        players[playerIdx].discordId = discordId;
-        players[playerIdx].avatar = tempEditAvatarBase64; // コピペ、またはアップロードしたBase64を反映
-
-        savePlayers();
-        renderAll();
+        if (currentRole === 'admin') {
+          // 管理者：即時適用
+          players[playerIdx].name = name;
+          players[playerIdx].discordId = discordId;
+          players[playerIdx].avatar = tempEditAvatarBase64;
+          players[playerIdx].editPending = null; // 既存の申請はクリア
+          savePlayers();
+          renderAll();
+          showToast(`「${name}」さんのプロフィール変更を即時反映しました！`);
+        } else {
+          // 一般テスター：承認待ちデータとしてプール
+          players[playerIdx].editPending = {
+            name: name,
+            discordId: discordId,
+            avatar: tempEditAvatarBase64
+          };
+          savePlayers();
+          renderAll();
+          showToast(`「${name}」さんのプロフィール編集変更を申請しました。管理者の承認をお待ちください。`);
+        }
         closePlayerEditModal();
-        showToast(`「${name}」さんのプロフィールを更新しました！`);
       }
     }
 
@@ -1249,11 +1321,16 @@
         
         const avatarHtml = getAvatarElementHtml(p, 7);
 
+        // 承認待ちプレイヤー(Pending)にはバッジを表示してわかりやすくする
+        const pendingBadge = p.status === 'pending'
+          ? `<span class="ml-1.5 px-1 py-0.5 text-[8px] bg-indigo-100 text-indigo-700 font-bold rounded">登録承認待ち</span>`
+          : '';
+
         div.innerHTML = `
           <label class="flex items-center gap-2 cursor-pointer w-full text-xs font-bold text-slate-700">
             <input type="checkbox" value="${p.id}" ${isChecked ? 'checked' : ''} onchange="toggleMemberSelection('${p.id}')" class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 border-gray-300">
             ${avatarHtml}
-            <span class="truncate">${p.name} <span class="text-[9px] text-slate-400 font-mono font-normal">(${p.matchesCount}回)</span></span>
+            <span class="truncate">${p.name} <span class="text-[9px] text-slate-400 font-mono font-normal">(${p.matchesCount}回)</span>${pendingBadge}</span>
           </label>
         `;
         container.appendChild(div);
@@ -1268,6 +1345,10 @@
       } else {
         selectedMemberIds.push(id);
       }
+      
+      // メンバー選択が切り替わったら勝者を一旦 null (未選択) にリセットする
+      selectedWinnerId = null;
+
       renderWinnerSelection();
       const stats = computePlayerStats();
       renderMemberSelection(Object.values(stats));
@@ -1291,7 +1372,7 @@
       
       const titleLabel = document.createElement('div');
       titleLabel.className = "text-[10px] text-slate-500 font-bold mb-1.5 flex items-center gap-1";
-      titleLabel.innerHTML = `<i class="fa-solid fa-arrow-down-long text-indigo-500"></i> この中から「勝者（1名）」をタップしてください`;
+      titleLabel.innerHTML = `<i class="fa-solid fa-arrow-down-long text-indigo-500"></i> この中から「勝者（1名）」をタップしてください（デフォルト未選択）`;
       container.appendChild(titleLabel);
 
       const gridDiv = document.createElement('div');
@@ -1324,13 +1405,10 @@
 
       container.appendChild(gridDiv);
 
-      // 自動選定ガード：1人だけ選択されている場合は、自動で勝者に決定
-      if (selectedMemberIds.length === 1) {
-        if (selectedWinnerId !== selectedMemberIds[0]) {
-          selectWinner(selectedMemberIds[0]);
-        }
-      } else if (selectedWinnerId && !selectedMemberIds.includes(selectedWinnerId)) {
-        selectedWinnerId = null; // メンバーリストから勝者が外されたら解除
+      // 自動選定を廃止したため、勝者が選ばれていない（null）状態でリスト描画されます。
+      // メンバーリストから現在の勝者設定が外れた場合はリセット
+      if (selectedWinnerId && !selectedMemberIds.includes(selectedWinnerId)) {
+        selectedWinnerId = null;
       }
     }
 
@@ -1365,6 +1443,7 @@
 
     // --- 管理者コンソールのレンダリング ---
     function renderAdminConsole() {
+      // 1. 承認待ち戦績リストの構築
       const pendingContainer = document.getElementById('pending-matches-container');
       const pendingList = matches.filter(m => m.status === 'pending');
       document.getElementById('pending-list-count').innerText = pendingList.length;
@@ -1372,9 +1451,8 @@
       pendingContainer.innerHTML = "";
       if (pendingList.length === 0) {
         pendingContainer.innerHTML = `
-          <div class="text-center p-6 border border-dashed border-gray-200 rounded-xl bg-slate-50 text-slate-400 text-xs">
-            <i class="fa-solid fa-check-double text-lg text-emerald-400 block mb-1"></i>
-            承認待ちの申請は現在ありません。
+          <div class="text-center p-4 border border-dashed border-gray-200 rounded-xl bg-slate-50 text-slate-400 text-xs">
+            <i class="fa-solid fa-check-double text-emerald-500 mr-1"></i> 承認待ちの戦績申請はありません。
           </div>
         `;
       } else {
@@ -1385,31 +1463,119 @@
           const item = document.createElement('div');
           item.className = "bg-amber-50/50 border border-amber-100 rounded-xl p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 fade-in";
           item.innerHTML = `
-            <div>
-              <div class="flex items-center gap-1.5 mb-1">
-                <span class="bg-amber-100 text-amber-800 text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase">申請中</span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+                <span class="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">戦績申請</span>
                 <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
               </div>
-              <div class="text-xs text-slate-700">
-                <span class="font-bold">メンバー:</span> ${membersNames}
-              </div>
-              <div class="text-xs text-amber-800 font-bold mt-0.5">
-                👑 勝者: ${winner ? winner.name : '未選定'}
-              </div>
+              <div class="text-xs text-slate-700 truncate"><span class="font-bold">メンバー:</span> ${membersNames}</div>
+              <div class="text-xs text-amber-800 font-bold mt-0.5">👑 勝者: ${winner ? winner.name : '未選定'}</div>
             </div>
-            <div class="flex gap-2 w-full sm:w-auto self-end sm:self-center">
-              <button onclick="approveMatch('${match.id}')" class="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-sm transition">
-                <i class="fa-solid fa-check mr-1"></i> 承認
-              </button>
-              <button onclick="deleteMatch('${match.id}')" class="flex-1 sm:flex-initial bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-1.5 px-3 rounded-lg border border-rose-200 transition">
-                <i class="fa-solid fa-trash mr-1"></i> 却下
-              </button>
+            <div class="flex gap-2 w-full sm:w-auto self-end sm:self-center shrink-0">
+              <button onclick="approveMatch('${match.id}')" class="flex-grow sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-sm transition">承認</button>
+              <button onclick="deleteMatch('${match.id}')" class="flex-grow sm:flex-initial bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-1.5 px-3 rounded-lg border border-rose-200 transition">却下</button>
             </div>
           `;
           pendingContainer.appendChild(item);
         });
       }
 
+      // 2. 承認待ちの新規プレイヤー登録リストの構築
+      const pendingPlayersContainer = document.getElementById('pending-players-container');
+      const pendingPlayersList = players.filter(p => p.status === 'pending');
+      document.getElementById('pending-players-count').innerText = pendingPlayersList.length;
+
+      pendingPlayersContainer.innerHTML = "";
+      if (pendingPlayersList.length === 0) {
+        pendingPlayersContainer.innerHTML = `
+          <div class="text-center p-4 border border-dashed border-gray-200 rounded-xl bg-slate-50 text-slate-400 text-xs">
+            <i class="fa-solid fa-check-double text-indigo-500 mr-1"></i> 承認待ちのプレイヤー登録はありません。
+          </div>
+        `;
+      } else {
+        pendingPlayersList.forEach(player => {
+          const avatarHtml = getAvatarElementHtml(player, 8);
+          const item = document.createElement('div');
+          item.className = "bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 fade-in";
+          item.innerHTML = `
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              ${avatarHtml}
+              <div class="min-w-0 flex-1">
+                <div class="font-bold text-xs text-slate-800 truncate">${player.name}</div>
+                <div class="text-[10px] text-slate-400 font-mono truncate">${player.discordId ? `@${player.discordId}` : '(IDなし)'}</div>
+              </div>
+            </div>
+            <div class="flex gap-2 w-full sm:w-auto self-end sm:self-center shrink-0">
+              <button onclick="approvePlayer('${player.id}')" class="flex-grow sm:flex-initial bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-sm transition">登録を承認</button>
+              <button onclick="rejectPlayer('${player.id}')" class="flex-grow sm:flex-initial bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-1.5 px-3 rounded-lg border border-rose-200 transition">却下</button>
+            </div>
+          `;
+          pendingPlayersContainer.appendChild(item);
+        });
+      }
+
+      // 3. 承認待ちのプロフィール編集申請リストの構築
+      const pendingEditsContainer = document.getElementById('pending-edits-container');
+      const pendingEditsList = players.filter(p => p.editPending && p.editPending !== null);
+      document.getElementById('pending-edits-count').innerText = pendingEditsList.length;
+
+      pendingEditsContainer.innerHTML = "";
+      if (pendingEditsList.length === 0) {
+        pendingEditsContainer.innerHTML = `
+          <div class="text-center p-4 border border-dashed border-gray-200 rounded-xl bg-slate-50 text-slate-400 text-xs">
+            <i class="fa-solid fa-check-double text-pink-500 mr-1"></i> 承認待ちのプロフィール編集申請はありません。
+          </div>
+        `;
+      } else {
+        pendingEditsList.forEach(player => {
+          const oldAvatarHtml = getAvatarElementHtml(player, 8);
+          // 編集申請データに基づいた一時プレイヤーでアバターを生成
+          const tempPlayer = { id: player.id, name: player.editPending.name, discordId: player.editPending.discordId, avatar: player.editPending.avatar, matchesCount: player.matchesCount };
+          const newAvatarHtml = getAvatarElementHtml(tempPlayer, 8);
+
+          const item = document.createElement('div');
+          item.className = "bg-pink-50/50 border border-pink-100 rounded-xl p-3 flex flex-col space-y-3.5 fade-in";
+          item.innerHTML = `
+            <div class="flex flex-col sm:flex-row justify-between gap-3 items-start sm:items-center">
+              <div class="flex items-center gap-3 flex-wrap">
+                <span class="bg-pink-100 text-pink-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">編集申請</span>
+                <span class="text-xs text-slate-800 font-bold">対象: ${player.name}さん</span>
+              </div>
+              <div class="flex gap-2 w-full sm:w-auto shrink-0">
+                <button onclick="approvePlayerEdit('${player.id}')" class="flex-1 sm:flex-initial bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-sm transition">変更を承認</button>
+                <button onclick="rejectPlayerEdit('${player.id}')" class="flex-1 sm:flex-initial bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-1.5 px-3 rounded-lg border border-rose-200 transition">却下</button>
+              </div>
+            </div>
+            
+            <!-- 変更前後の比較表示 -->
+            <div class="grid grid-cols-2 gap-3 bg-white p-2.5 rounded-xl border border-pink-100/50 text-xs">
+              <div class="border-r border-slate-100 pr-2">
+                <div class="text-[9px] text-slate-400 font-bold mb-1">変更前</div>
+                <div class="flex items-center gap-2">
+                  ${oldAvatarHtml}
+                  <div class="min-w-0 flex-1">
+                    <div class="font-bold text-slate-700 truncate">${player.name}</div>
+                    <div class="text-[9px] text-slate-400 font-mono truncate">${player.discordId ? `@${player.discordId}` : '(なし)'}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="pl-1">
+                <div class="text-[9px] text-indigo-500 font-bold mb-1">変更後（申請内容）</div>
+                <div class="flex items-center gap-2">
+                  ${newAvatarHtml}
+                  <div class="min-w-0 flex-1">
+                    <div class="font-bold text-slate-900 truncate">${player.editPending.name}</div>
+                    <div class="text-[9px] text-indigo-400 font-mono truncate">${player.editPending.discordId ? `@${player.editPending.discordId}` : '(なし)'}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+          pendingEditsContainer.appendChild(item);
+        });
+      }
+
+      // 4. 承認済み履歴テーブル
       const approvedBody = document.getElementById('approved-matches-table-body');
       const approvedList = matches.filter(m => m.status === 'approved').sort((a,b) => b.createdAt - a.createdAt);
 
@@ -1441,6 +1607,56 @@
           `;
           approvedBody.appendChild(tr);
         });
+      }
+    }
+
+    // --- プレイヤー関係の承認アクション ---
+    // プレイヤーの新規登録を承認
+    function approvePlayer(playerId) {
+      const pIdx = players.findIndex(p => p.id === playerId);
+      if (pIdx !== -1) {
+        players[pIdx].status = "approved";
+        savePlayers();
+        renderAll();
+        showToast(`「${players[pIdx].name}」さんのプレイヤー本登録を承認しました！`);
+      }
+    }
+
+    // プレイヤーの新規登録を却下（削除）
+    function rejectPlayer(playerId) {
+      const player = players.find(p => p.id === playerId);
+      if (player && confirm(`「${player.name}」さんの登録申請を却下し、データを削除しますか？`)) {
+        players = players.filter(p => p.id !== playerId);
+        savePlayers();
+        renderAll();
+        showToast("プレイヤー登録申請を却下しました。");
+      }
+    }
+
+    // プロフィール編集の承認
+    function approvePlayerEdit(playerId) {
+      const pIdx = players.findIndex(p => p.id === playerId);
+      if (pIdx !== -1 && players[pIdx].editPending) {
+        const editData = players[pIdx].editPending;
+        players[pIdx].name = editData.name;
+        players[pIdx].discordId = editData.discordId;
+        players[pIdx].avatar = editData.avatar;
+        players[pIdx].editPending = null; // 申請クリア
+        
+        savePlayers();
+        renderAll();
+        showToast(`「${players[pIdx].name}」さんのプロフィール編集変更を承認しました！`);
+      }
+    }
+
+    // プロフィール編集の却下
+    function rejectPlayerEdit(playerId) {
+      const pIdx = players.findIndex(p => p.id === playerId);
+      if (pIdx !== -1 && confirm(`「${players[pIdx].name}」さんのプロフィール編集申請を却下しますか？`)) {
+        players[pIdx].editPending = null; // 申請のみ却下
+        savePlayers();
+        renderAll();
+        showToast("プロフィール編集申請を却下しました。");
       }
     }
 
@@ -1527,8 +1743,17 @@
         alert("参加メンバーを1名以上選択してください。");
         return;
       }
+      
+      // 改良：勝者の未選択を厳格にチェックして警告する
       if (!selectedWinnerId) {
-        alert("勝者を1名選択してください（クラウンを点灯させてください）。");
+        showToast("⚠️ 勝者が選択されていません。選択中メンバーリストの中から勝者（1名）をタップしてクラウンを点灯させてください！");
+        const stepContainer = document.getElementById('winner-step-container');
+        if (stepContainer) {
+          stepContainer.scrollIntoView({ behavior: 'smooth' });
+          // フラッシュ点滅アニメーションなどで注意を促す
+          stepContainer.classList.add('ring-2', 'ring-rose-400');
+          setTimeout(() => stepContainer.classList.remove('ring-2', 'ring-rose-400'), 1500);
+        }
         return;
       }
 
@@ -1560,7 +1785,7 @@
       } else {
         showToast("戦績を申請しました。管理者の承認をお待ちください。");
         setTimeout(() => {
-          if(confirm("申請を承認するシミュレートを行いますか？\n（ロールを管理者に切り替えて承認画面へ案内します）")) {
+          if(confirm("申請を承認するシミュレートを行いますか？\n（ロールを管理者に切り替えて承認コンソールへ案内します）")) {
             trySwitchToAdmin();
             scrollToSection('admin-section');
           }
@@ -1589,7 +1814,7 @@
       }
     }
 
-    // プレイヤーの追加 (コピペ＆手動)
+    // プレイヤーの追加 (コピペ＆手動。承認待ちフローに対応)
     function addPlayerHandy() {
       const nameInput = document.getElementById('new-player-name');
       const name = nameInput.value.trim();
@@ -1609,12 +1834,15 @@
       }
 
       const saveNewPlayer = (finalAvatar = "") => {
+        const isApproved = currentRole === 'admin';
         const newP = {
           id: "p_" + Date.now(),
           name: name,
-          discordId: discordId, // なければブランクのまま保存
+          discordId: discordId, // なければブランク
           avatar: finalAvatar,
-          customTriangleColor: ""
+          customTriangleColor: "",
+          status: isApproved ? "approved" : "pending",
+          editPending: null
         };
 
         players.push(newP);
@@ -1628,7 +1856,11 @@
         tempAvatarBase64 = "";
         updateAvatarPreview();
 
-        showToast(`「${name}」を追加しました。`);
+        if (isApproved) {
+          showToast(`「${name}」さんをプレイヤー登録しました。`);
+        } else {
+          showToast(`「${name}」さんのプレイヤー追加申請を送信しました（承認待ち）。\n承認待ちの間でも、上の戦績選択でメンバーとしてすぐに起用可能です！`);
+        }
       };
 
       if (tempAvatarBase64 !== "") {
