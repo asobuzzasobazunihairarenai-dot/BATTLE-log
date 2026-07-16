@@ -36,6 +36,15 @@
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen">
 
+  <!-- クイックトースト通知 (成功メッセージなどの通知用。自動で消えます) -->
+  <div id="status-toast" class="hidden fixed top-5 left-1/2 -translate-x-1/2 w-11/12 max-w-md bg-slate-900/95 text-white px-4 py-3 rounded-xl shadow-2xl flex justify-between items-center border border-slate-700 fade-in z-50">
+    <div class="flex items-center gap-2.5 min-w-0 flex-1">
+      <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-lg shrink-0"></i>
+      <span id="status-toast-text" class="text-xs sm:text-sm font-bold truncate"></span>
+    </div>
+    <button onclick="closeToast()" class="text-slate-400 hover:text-white p-1 ml-2 shrink-0"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+
   <!-- ヘッダー兼ナビゲーション -->
   <header class="bg-slate-900 text-white shadow-md">
     <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -61,18 +70,12 @@
           </button>
         </div>
         <!-- バージョン番号表示（更新確認用） -->
-        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161204</span>
+        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161450</span>
       </div>
     </div>
   </header>
 
   <main class="max-w-7xl mx-auto p-4 space-y-6">
-
-    <!-- クイックステータス通知 -->
-    <div id="status-toast" class="hidden bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-md flex justify-between items-center fade-in">
-      <span id="status-toast-text" class="text-sm font-semibold"></span>
-      <button onclick="closeToast()" class="text-white hover:text-gray-200"><i class="fa-solid fa-xmark"></i></button>
-    </div>
 
     <!-- 管理者用の「承認待ち」お知らせバナー -->
     <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-sm fade-in">
@@ -238,7 +241,7 @@
       <!-- 右側: メインダッシュボード (ランキング＆戦績表) -->
       <div class="lg:col-span-8 space-y-6">
 
-        <!-- ビジュアルダッシュボード (ここを丸ごとPNG出力可能にする) -->
+        <!-- ビジュアルダッシュボード -->
         <div class="bg-white rounded-3xl border border-gray-200/90 shadow-md overflow-hidden relative" id="dashboard-wrapper">
           
           <!-- 画像キャプチャ用の操作バー (画像出力時には隠れます) -->
@@ -295,11 +298,21 @@
               <!-- プレイヤー個別カード一覧 (右側 8カラム) -->
               <div class="md:col-span-8">
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                  <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
+                  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 pb-2 border-b border-gray-100">
                     <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                       <i class="fa-solid fa-users text-indigo-500"></i> 登録プレイヤー戦績一覧
                     </h3>
-                    <div class="text-[10px] text-slate-400 font-bold" id="total-players-badge">登録者: 30人</div>
+                    <div class="flex items-center gap-2 flex-wrap shrink-0">
+                      <span class="text-[10px] font-bold text-slate-400">並び順:</span>
+                      <!-- 並び替え（ソート機能） -->
+                      <select id="players-sort-select" onchange="changePlayersSort()" class="text-[10px] font-bold bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-600 outline-none focus:border-indigo-400">
+                        <option value="name">五十音順</option>
+                        <option value="matchesCount">対戦数順</option>
+                        <option value="winsCount">勝利数順</option>
+                        <option value="winRate">勝率順</option>
+                      </select>
+                      <div class="text-[10px] text-slate-400 font-bold" id="total-players-badge">登録者: 30人</div>
+                    </div>
                   </div>
 
                   <!-- プレイヤーグリッド一覧 -->
@@ -320,8 +333,8 @@
           </div>
         </div>
 
-        <!-- ③ 承認管理 ＆ 履歴タブ (管理者用に表示) -->
-        <section id="admin-section" class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 space-y-6">
+        <!-- ③ 承認管理 ＆ 履歴タブ (管理者用に表示。起動時は確実に非表示にするためhiddenを初期付与) -->
+        <section id="admin-section" class="hidden bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 space-y-6">
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-4 border-gray-100">
             <div>
               <h2 class="font-bold text-lg text-slate-800 flex items-center gap-2">
@@ -344,7 +357,7 @@
               承認待ちの戦績申請 (<span id="pending-list-count" class="font-bold">0</span>)
             </h3>
             <div id="pending-matches-container" class="space-y-3">
-              <!-- JSで動的構築 -->
+              <!-- JSで動的に構築 -->
             </div>
           </div>
 
@@ -355,7 +368,7 @@
               承認待ちのプレイヤー登録申請 (<span id="pending-players-count" class="font-bold">0</span>)
             </h3>
             <div id="pending-players-container" class="space-y-3">
-              <!-- JSで動的構築 -->
+              <!-- JSで動的に構築 -->
             </div>
           </div>
 
@@ -366,7 +379,7 @@
               承認待ちのプロフィール編集申請 (<span id="pending-edits-count" class="font-bold">0</span>)
             </h3>
             <div id="pending-edits-container" class="space-y-3">
-              <!-- JSで動的構築 -->
+              <!-- JSで動的に構築 -->
             </div>
           </div>
 
@@ -388,7 +401,7 @@
                     </tr>
                   </thead>
                   <tbody id="approved-matches-table-body" class="divide-y divide-gray-100 bg-white">
-                    <!-- JSで動的構築 -->
+                    <!-- JSで動的に構築 -->
                   </tbody>
                 </table>
               </div>
@@ -410,7 +423,7 @@
                 <input type="password" id="change-pwd-new" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400" placeholder="新しいPW">
               </div>
               <div class="flex items-center gap-2">
-                <div class="flex-grow">
+                <div class="flex-grow flex-1 min-w-0">
                   <label class="block text-[10px] font-bold text-gray-400 mb-1">新しいパスワード（確認）</label>
                   <input type="password" id="change-pwd-confirm" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400" placeholder="確認用入力">
                 </div>
@@ -424,7 +437,7 @@
           <!-- システム初期化 -->
           <div class="border-t border-dashed border-gray-100 pt-4 flex justify-between items-center">
             <span class="text-xs text-slate-400">データの初期化（テスト用初期値に戻す）:</span>
-            <button type="button" onclick="resetToDefaultData()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-1.5 px-3 rounded-lg border border-rose-200 transition">
+            <button type="button" onclick="triggerResetConfirmModal()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-1.5 px-3 rounded-lg border border-rose-200 transition">
               データを初期データにリセット
             </button>
           </div>
@@ -524,12 +537,57 @@
         </div>
       </div>
 
-      <div class="flex justify-end gap-2 pt-3 border-t">
-        <button onclick="closePlayerEditModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 px-4 rounded-xl transition">
+      <div class="flex justify-between items-center pt-3 border-t">
+        <!-- 削除ボタン (管理者時のみ表示するようにJSで制御) -->
+        <button id="edit-player-delete-btn" onclick="triggerDeleteConfirmModal()" class="hidden bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-2 px-3.5 rounded-xl border border-rose-200 transition">
+          <i class="fa-solid fa-trash-can mr-1"></i> プレイヤーを削除
+        </button>
+        <div class="flex gap-2 ml-auto">
+          <button onclick="closePlayerEditModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 px-4 rounded-xl transition">
+            キャンセル
+          </button>
+          <button onclick="savePlayerEdit()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-md transition">
+            <span id="player-edit-submit-btn-text">変更を申請する (承認待ち)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 画面中央 警告用モーダル (勝手に消えない設計。OKボタン付き) -->
+  <div id="app-warning-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-rose-100 text-center animate-in fade-in zoom-in-95 duration-150">
+      <div class="bg-rose-100 text-rose-600 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-inner mx-auto">
+        <i class="fa-solid fa-triangle-exclamation animate-bounce"></i>
+      </div>
+      <h3 class="font-extrabold text-slate-800 text-base">操作エラー</h3>
+      <p id="app-warning-text" class="text-xs text-slate-600 leading-relaxed whitespace-normal break-all">
+        <!-- 警告メッセージ -->
+      </p>
+      <div class="pt-2">
+        <button onclick="closeAppWarningModal()" class="w-full bg-slate-900 hover:bg-slate-950 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-md">
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- カスタム確認ダイアログモーダル (confirmの代わりにがっちり動作。削除やリセット用) -->
+  <div id="app-confirm-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+      <div id="confirm-modal-icon-bg" class="bg-amber-100 text-amber-600 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-inner mx-auto">
+        <i id="confirm-modal-icon" class="fa-solid fa-circle-question"></i>
+      </div>
+      <h3 id="confirm-modal-title" class="font-extrabold text-slate-800 text-base text-center">確認</h3>
+      <p id="confirm-modal-text" class="text-xs text-slate-600 leading-relaxed text-center whitespace-normal break-all">
+        <!-- メッセージ -->
+      </p>
+      <div class="flex gap-2.5 pt-2">
+        <button onclick="closeAppConfirmModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition">
           キャンセル
         </button>
-        <button onclick="savePlayerEdit()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-md transition">
-          <span id="player-edit-submit-btn-text">変更を申請する (承認待ち)</span>
+        <button id="confirm-modal-yes-btn" onclick="executeAppConfirm()" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition">
+          実行する
         </button>
       </div>
     </div>
@@ -548,12 +606,16 @@
     const STORAGE_PREFIX = "7shades_match_tracker_";
     let currentRole = "tester"; // 'tester' | 'admin'
     let memberSortKey = "playCount"; // 'playCount' | 'alphabetical'
+    let playersSortKey = "name"; // 'name' | 'matchesCount' | 'winsCount' | 'winRate' (並び替えキー)
     let searchQuery = "";
 
     // プレイヤー追加用の一時Base64
     let tempAvatarBase64 = "";
     // プレイヤー編集用の一時Base64
     let tempEditAvatarBase64 = "";
+
+    // カスタム確認ダイアログのコールバック定義用
+    let confirmCallback = null;
 
     // 管理者認証用パスワード (初期値は0000、LocalStorageに保存可能)
     let adminPassword = localStorage.getItem(STORAGE_PREFIX + "admin_password") || "0000";
@@ -610,88 +672,60 @@
     let players = [];
     let matches = [];
 
-    // 起動時処理
-    window.onload = function() {
-      loadData();
-      
-      const today = new Date().toISOString().split('T')[0];
-      document.getElementById('match-date').value = today;
-
-      updateBoardDateTime();
-      renderAll();
-      updateAvatarPreview(); // 追加アバタープレビューの初期化
-
-      // パスワード入力フィールドのEnterキー監視
-      document.getElementById('admin-password-input').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-          verifyAdminPassword();
-        }
-      });
-
-      // 貼り付けゾーン(paste-zone-box)のクリップボード貼り付け監視
-      const pasteZone = document.getElementById('paste-zone-box');
-      pasteZone.addEventListener('paste', function(e) {
-        handlePasteEvent(e, false);
-      });
-      
-      // 編集用貼り付けゾーン(edit-paste-zone)の監視
-      const editPasteZone = document.getElementById('edit-paste-zone');
-      editPasteZone.addEventListener('paste', function(e) {
-        handlePasteEvent(e, true);
-      });
-
-      // ドキュメント全体でのPaste監視
-      document.addEventListener('paste', function(e) {
-        const activeTag = document.activeElement.tagName.toLowerCase();
-        // 通常の文字入力欄にいる時はコピペ画像を妨げないように
-        if (activeTag === 'input' && document.activeElement.id !== 'new-player-discord-id' && document.activeElement.id !== 'edit-player-discord-id') {
-          return; 
-        }
-        
-        // 編集モーダルが開いている場合は編集用、そうでない場合は追加用へ処理
-        const editModalOpen = !document.getElementById('player-edit-modal').classList.contains('hidden');
-        handlePasteEvent(e, editModalOpen);
-      });
-    };
-
-    // クリップボードからの貼り付けイベント処理
-    function handlePasteEvent(e, isEdit = false) {
-      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-      let imageFound = false;
-
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          const blob = items[i].getAsFile();
-          const reader = new FileReader();
-          reader.onload = function(event) {
-            if (isEdit) {
-              tempEditAvatarBase64 = event.target.result;
-              updateEditAvatarPreview();
-            } else {
-              tempAvatarBase64 = event.target.result;
-              updateAvatarPreview();
-            }
-            showToast("アバター画像をクリップボードから貼り付けました！");
-          };
-          reader.readAsDataURL(blob);
-          imageFound = true;
-          break;
-        }
-      }
-      
-      if (!imageFound && e.currentTarget && (e.currentTarget.id === 'paste-zone-box' || e.currentTarget.id === 'edit-paste-zone')) {
-        showToast("貼り付けられたデータに画像が見つかりませんでした。");
-      }
+    // --- 【新設】カスタム警告/確認ダイアログの表示制御ロジック ---
+    function showAppWarningModal(message) {
+      document.getElementById('app-warning-text').innerText = message;
+      document.getElementById('app-warning-modal').classList.remove('hidden');
     }
 
-    function updateBoardDateTime() {
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      document.getElementById('current-board-date').innerText = 
-        `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    function closeAppWarningModal() {
+      document.getElementById('app-warning-modal').classList.add('hidden');
     }
 
-    // --- データ保存・読み込み管理 ---
+    // confirmの代用：カスタム確認モーダルの呼び出し
+    function showAppConfirmModal(title, text, isDanger, onConfirm) {
+      document.getElementById('confirm-modal-title').innerText = title;
+      document.getElementById('confirm-modal-text').innerText = text;
+      
+      const iconBg = document.getElementById('confirm-modal-icon-bg');
+      const icon = document.getElementById('confirm-modal-icon');
+      const yesBtn = document.getElementById('confirm-modal-yes-btn');
+
+      if (isDanger) {
+        iconBg.className = "bg-rose-100 text-rose-600 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-inner mx-auto";
+        icon.className = "fa-solid fa-trash-can animate-pulse";
+        yesBtn.className = "flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition";
+      } else {
+        iconBg.className = "bg-amber-100 text-amber-600 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-inner mx-auto";
+        icon.className = "fa-solid fa-triangle-exclamation";
+        yesBtn.className = "flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition";
+      }
+
+      confirmCallback = onConfirm;
+      document.getElementById('app-confirm-modal').classList.remove('hidden');
+    }
+
+    function closeAppConfirmModal() {
+      document.getElementById('app-confirm-modal').classList.add('hidden');
+      confirmCallback = null;
+    }
+
+    function executeAppConfirm() {
+      if (confirmCallback) {
+        confirmCallback();
+      }
+      closeAppConfirmModal();
+    }
+
+    // --- データのロード・保存 (復元された極めて重要な定義群) ---
+    function savePlayers() {
+      localStorage.setItem(STORAGE_PREFIX + "players", JSON.stringify(players));
+    }
+
+    function saveMatches() {
+      localStorage.setItem(STORAGE_PREFIX + "matches", JSON.stringify(matches));
+    }
+
     function loadData() {
       const loadedPlayers = localStorage.getItem(STORAGE_PREFIX + "players");
       const loadedMatches = localStorage.getItem(STORAGE_PREFIX + "matches");
@@ -708,25 +742,6 @@
       } else {
         matches = [...defaultMatches];
         saveMatches();
-      }
-    }
-
-    function savePlayers() {
-      localStorage.setItem(STORAGE_PREFIX + "players", JSON.stringify(players));
-    }
-
-    function saveMatches() {
-      localStorage.setItem(STORAGE_PREFIX + "matches", JSON.stringify(matches));
-    }
-
-    function resetToDefaultData() {
-      if(confirm("データをテスト用の初期状態に戻してもよろしいですか？（現在のすべての追加プレイヤーと戦績がリセットされます）")) {
-        players = JSON.parse(JSON.stringify(defaultPlayers));
-        matches = JSON.parse(JSON.stringify(defaultMatches));
-        savePlayers();
-        saveMatches();
-        renderAll();
-        showToast("データを初期状態にリセットしました。");
       }
     }
 
@@ -811,6 +826,8 @@
         formBadge.innerText = "管理者権限";
         formBadge.className = "bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
         submitBtnText.innerText = "戦績を即時登録 (承認済み)";
+        
+        // 管理者コンソール自体をテスターモードではハイドし、管理者時のみ完全露出
         adminSection.classList.remove('hidden');
         
         // プレイヤー追加フォームの文言切替（管理者）
@@ -826,6 +843,8 @@
         formBadge.innerText = "一般申請用";
         formBadge.className = "bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
         submitBtnText.innerText = "戦績を申請する (承認待ちへ)";
+        
+        // 一般テスター時：管理者コンソールを完封ハイド (初期化リセット含む)
         adminSection.classList.add('hidden');
         
         // プレイヤー追加フォームの文言切替（テスター）
@@ -836,7 +855,7 @@
         if(playerEditSubmitBtnText) playerEditSubmitBtnText.innerText = "変更を申請する (承認待ち)";
       }
       renderAll(); // 各種表示ボタン（編集ボタン等）を切り替えるため再描画
-      showToast(`操作権限を「${role === 'admin' ? '管理者' : '一般テスター'}」に切り替えました。`);
+      showToast("操作権限を切り替えました。");
     }
 
     // --- 各種計算（集計）ロジック ---
@@ -854,7 +873,9 @@
           status: p.status,
           matchesCount: 0,
           winsCount: 0,
-          winRate: 0
+          winRate: 0,
+          // プロフィール編集の申請データ(editPending)をここに格納してレンダリングに渡す
+          editPending: p.editPending || null
         };
       });
 
@@ -896,6 +917,12 @@
       return "ブロンズテスター";
     }
 
+    // 登録プレイヤー戦績一覧の並び替え変更用ハンドラ
+    function changePlayersSort() {
+      playersSortKey = document.getElementById('players-sort-select').value;
+      renderAll();
+    }
+
     // --- UI レンダリングコア ---
     function renderAll() {
       const stats = computePlayerStats();
@@ -930,15 +957,17 @@
       document.getElementById('total-players-badge').innerText = `登録者: ${players.filter(p => p.status === 'approved').length}人`;
     }
 
-    // アバターゲット用の汎用ヘルパー
+    // アバターゲット用の汎用ヘルパー (編集申請中[editPending]があればそちらのアバターを優先して取り出す)
     function getPlayerAvatarSrc(player) {
-      if (player.avatar && player.avatar.trim() !== "") {
-        return player.avatar;
+      const activePlayer = (player.editPending && player.editPending !== null) ? player.editPending : player;
+
+      if (activePlayer.avatar && activePlayer.avatar.trim() !== "") {
+        return activePlayer.avatar;
       }
       
       // 画像指定がない、かつIDがある場合はDicebearのロボット
-      if (player.discordId && player.discordId.trim() !== "") {
-        const cleanId = player.discordId.trim().toLowerCase();
+      if (activePlayer.discordId && activePlayer.discordId.trim() !== "") {
+        const cleanId = activePlayer.discordId.trim().toLowerCase();
         return `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanId)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
       }
       
@@ -1038,12 +1067,31 @@
       });
     }
 
-    // プレイヤー個別カードの構築（編集ボタンを全員に開放。申請中の表記対応）
+    // プレイヤー個別カードの構築（多角的なソートロジックを搭載）
     function renderPlayersGrid(approvedStatsList) {
       const container = document.getElementById('players-grid-container');
       container.innerHTML = "";
 
-      const sorted = [...approvedStatsList].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      const sorted = [...approvedStatsList];
+      if (playersSortKey === 'name') {
+        sorted.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      } else if (playersSortKey === 'matchesCount') {
+        sorted.sort((a, b) => {
+          if (b.matchesCount !== a.matchesCount) return b.matchesCount - a.matchesCount;
+          return a.name.localeCompare(b.name, 'ja'); // 同率時は五十音順
+        });
+      } else if (playersSortKey === 'winsCount') {
+        sorted.sort((a, b) => {
+          if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount;
+          return a.name.localeCompare(b.name, 'ja');
+        });
+      } else if (playersSortKey === 'winRate') {
+        sorted.sort((a, b) => {
+          if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+          if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount; // 同率時は勝利数優先
+          return a.name.localeCompare(b.name, 'ja');
+        });
+      }
 
       sorted.forEach(player => {
         const avatarHtml = getAvatarElementHtml(player, 10);
@@ -1057,12 +1105,12 @@
         const rawPlayer = players.find(p => p.id === player.id);
         const hasPendingEdit = rawPlayer && rawPlayer.editPending && rawPlayer.editPending !== null;
         const pendingBadgeHtml = hasPendingEdit
-          ? `<span class="ml-1.5 px-1 py-0.5 text-[8px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-200">編集承認待ち</span>`
+          ? `<span class="ml-1.5 px-1 py-0.5 text-[8px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-200 shrink-0">編集承認待ち</span>`
           : '';
 
         // ペンマーク編集ボタンは一般・管理者ともに開放
         const editButtonHtml = `
-          <button onclick="openPlayerEditModal('${player.id}')" class="text-slate-400 hover:text-indigo-600 transition ml-1.5 p-0.5" title="${player.name}さんのプロフィールを編集">
+          <button onclick="openPlayerEditModal('${player.id}')" class="text-slate-400 hover:text-indigo-600 transition ml-1.5 p-0.5 shrink-0" title="${player.name}さんのプロフィールを編集">
             <i class="fa-solid fa-user-gear text-xs"></i>
           </button>
         `;
@@ -1076,7 +1124,7 @@
               ${avatarHtml}
             </div>
             <div class="min-w-0 flex-1 flex flex-col justify-center py-0.5">
-              <div class="flex items-center min-w-0">
+              <div class="flex items-center min-w-0 flex-wrap">
                 <span class="font-black text-xs text-slate-800 truncate" title="${player.name}">${player.name}</span>
                 ${editButtonHtml}
                 ${pendingBadgeHtml}
@@ -1206,6 +1254,17 @@
       }
 
       updateEditAvatarPreview();
+
+      // 管理者ロールの時のみ、編集モーダル内に「プレイヤー削除」ボタンを表示する
+      const deleteBtn = document.getElementById('edit-player-delete-btn');
+      if (currentRole === 'admin') {
+        deleteBtn.classList.remove('hidden');
+        document.getElementById('player-edit-submit-btn-text').innerText = "変更を保存する (即時反映)";
+      } else {
+        deleteBtn.classList.add('hidden');
+        document.getElementById('player-edit-submit-btn-text').innerText = "変更を申請する (承認待ち)";
+      }
+
       document.getElementById('player-edit-modal').classList.remove('hidden');
     }
 
@@ -1252,7 +1311,7 @@
       const discordId = document.getElementById('edit-player-discord-id').value.trim();
 
       if (!name) {
-        alert("名前を入力してください。");
+        showAppWarningModal("名前を入力してください。");
         return;
       }
 
@@ -1260,7 +1319,7 @@
       if (playerIdx !== -1) {
         // 重複チェック
         if (players.some((p, idx) => p.name === name && idx !== playerIdx)) {
-          alert("同じ名前のプレイヤーが既に登録されています。");
+          showAppWarningModal("同じ名前のプレイヤーが既に登録されています。");
           return;
         }
 
@@ -1269,7 +1328,7 @@
           players[playerIdx].name = name;
           players[playerIdx].discordId = discordId;
           players[playerIdx].avatar = tempEditAvatarBase64;
-          players[playerIdx].editPending = null; // 既存の申請はクリア
+          players[playerIdx].editPending = null; 
           savePlayers();
           renderAll();
           showToast(`「${name}」さんのプロフィール変更を即時反映しました！`);
@@ -1282,10 +1341,48 @@
           };
           savePlayers();
           renderAll();
-          showToast(`「${name}」さんのプロフィール編集変更を申請しました。管理者の承認をお待ちください。`);
+          showToast(`「${name}」さんのプロフィール編集変更を申請しました。`);
         }
         closePlayerEditModal();
       }
+    }
+
+    // 【改良】確認モーダル（削除確認ダイアログの表示）
+    function triggerDeleteConfirmModal() {
+      const id = document.getElementById('edit-player-id').value;
+      const player = players.find(p => p.id === id);
+      if (!player) return;
+
+      showAppConfirmModal(
+        "プレイヤーの削除",
+        `本当に「${player.name}」さんを削除しますか？\n（関連するすべての過去戦績履歴はそのまま残りますが、プレイヤー一覧やランキングからは完全に削除されます）`,
+        true, // 危険アクション(赤ボタン)
+        function() {
+          // 実際の削除処理
+          players = players.filter(p => p.id !== id);
+          savePlayers();
+          renderAll();
+          closePlayerEditModal();
+          showToast(`「${player.name}」さんをシステムから削除しました。`);
+        }
+      );
+    }
+
+    // 【改良】確認モーダル（データ初期化リセットダイアログの表示）
+    function triggerResetConfirmModal() {
+      showAppConfirmModal(
+        "データの初期化確認",
+        "データをテスト用の初期状態に戻してもよろしいですか？（現在のすべての追加プレイヤーと戦績がリセットされます）",
+        false, // 通常の警告(黄ボタン)
+        function() {
+          players = JSON.parse(JSON.stringify(defaultPlayers));
+          matches = JSON.parse(JSON.stringify(defaultMatches));
+          savePlayers();
+          saveMatches();
+          renderAll();
+          showToast("データを初期状態にリセットしました。");
+        }
+      );
     }
 
     // --- フォーム用：メンバー一覧チェックボックス ---
@@ -1321,37 +1418,28 @@
         
         const avatarHtml = getAvatarElementHtml(p, 7);
 
-        // 承認待ちプレイヤー(Pending)にはバッジを表示してわかりやすくする
+        // 承認待ちプレイヤー(Pending)
         const pendingBadge = p.status === 'pending'
           ? `<span class="ml-1.5 px-1 py-0.5 text-[8px] bg-indigo-100 text-indigo-700 font-bold rounded">登録承認待ち</span>`
+          : '';
+
+        // プロフィール編集承認待ち(editPending)
+        const displayName = (p.editPending && p.editPending !== null) ? p.editPending.name : p.name;
+        const editPendingBadge = (p.editPending && p.editPending !== null)
+          ? `<span class="ml-1.5 px-1 py-0.5 text-[8px] bg-pink-100 text-pink-700 font-bold rounded">編集申請中</span>`
           : '';
 
         div.innerHTML = `
           <label class="flex items-center gap-2 cursor-pointer w-full text-xs font-bold text-slate-700">
             <input type="checkbox" value="${p.id}" ${isChecked ? 'checked' : ''} onchange="toggleMemberSelection('${p.id}')" class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 border-gray-300">
             ${avatarHtml}
-            <span class="truncate">${p.name} <span class="text-[9px] text-slate-400 font-mono font-normal">(${p.matchesCount}回)</span>${pendingBadge}</span>
+            <span class="truncate">${displayName} <span class="text-[9px] text-slate-400 font-mono font-normal">(${p.matchesCount}回)</span>${pendingBadge}${editPendingBadge}</span>
           </label>
         `;
         container.appendChild(div);
       });
 
       renderWinnerSelection();
-    }
-
-    function toggleMemberSelection(id) {
-      if (selectedMemberIds.includes(id)) {
-        selectedMemberIds = selectedMemberIds.filter(mid => mid !== id);
-      } else {
-        selectedMemberIds.push(id);
-      }
-      
-      // メンバー選択が切り替わったら勝者を一旦 null (未選択) にリセットする
-      selectedWinnerId = null;
-
-      renderWinnerSelection();
-      const stats = computePlayerStats();
-      renderMemberSelection(Object.values(stats));
     }
 
     // 勝者選択ラジオボタン（2ステップ：選ばれたメンバーリストを構築し、その中から勝者をタップするフロー）
@@ -1387,29 +1475,51 @@
         btn.type = "button";
         btn.onclick = () => selectWinner(id);
         
-        // メンバーアバターを取得
+        // アバター画像の読み込み (getPlayerAvatarSrc を通すためeditPendingが考慮されます)
         const avatarHtml = getAvatarElementHtml(p, 6);
 
-        // 選ばれた勝者と、それ以外のメンバーでボーダーとカラーを差別化
+        // 勝者選択エリアでも、編集申請中の場合は申請されている最新の名前を表示
+        const displayName = (p.editPending && p.editPending !== null) ? p.editPending.name : p.name;
+        const editPendingBadge = (p.editPending && p.editPending !== null)
+          ? `<span class="text-[8px] text-pink-600 bg-pink-50 px-1 py-0.5 rounded scale-90">編集申請中</span>`
+          : '';
+
+        // 選ばれた勝者と、それ以外のメンバー
         btn.className = `p-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition duration-150 ${isWinner ? 'bg-amber-100/90 border-amber-400 text-amber-950 shadow-md shadow-amber-500/5 ring-1 ring-amber-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`;
         btn.innerHTML = `
           <div class="shrink-0 relative">
             ${avatarHtml}
             ${isWinner ? `<div class="absolute -top-1 -left-1 text-[8px] bg-amber-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center border border-white shadow"><i class="fa-solid fa-crown text-[6px]"></i></div>` : ''}
           </div>
-          <span class="truncate flex-1 text-left">${p.name}</span>
-          ${isWinner ? `<span class="text-[9px] text-amber-700 bg-amber-200/50 px-1.5 py-0.5 rounded-full font-black scale-90">WINNER</span>` : ''}
+          <div class="min-w-0 flex-1 text-left flex flex-col">
+            <span class="truncate text-xs font-bold">${displayName}</span>
+            ${editPendingBadge}
+          </div>
+          ${isWinner ? `<span class="text-[9px] text-amber-700 bg-amber-200/50 px-1.5 py-0.5 rounded-full font-black scale-90 shrink-0">WINNER</span>` : ''}
         `;
         gridDiv.appendChild(btn);
       });
 
       container.appendChild(gridDiv);
 
-      // 自動選定を廃止したため、勝者が選ばれていない（null）状態でリスト描画されます。
       // メンバーリストから現在の勝者設定が外れた場合はリセット
       if (selectedWinnerId && !selectedMemberIds.includes(selectedWinnerId)) {
         selectedWinnerId = null;
       }
+    }
+
+    function toggleMemberSelection(id) {
+      if (selectedMemberIds.includes(id)) {
+        selectedMemberIds = selectedMemberIds.filter(mid => mid !== id);
+      } else {
+        selectedMemberIds.push(id);
+      }
+      
+      selectedWinnerId = null;
+
+      renderWinnerSelection();
+      const stats = computePlayerStats();
+      renderMemberSelection(Object.values(stats));
     }
 
     function selectWinner(id) {
@@ -1611,7 +1721,6 @@
     }
 
     // --- プレイヤー関係の承認アクション ---
-    // プレイヤーの新規登録を承認
     function approvePlayer(playerId) {
       const pIdx = players.findIndex(p => p.id === playerId);
       if (pIdx !== -1) {
@@ -1622,18 +1731,23 @@
       }
     }
 
-    // プレイヤーの新規登録を却下（削除）
     function rejectPlayer(playerId) {
       const player = players.find(p => p.id === playerId);
-      if (player && confirm(`「${player.name}」さんの登録申請を却下し、データを削除しますか？`)) {
-        players = players.filter(p => p.id !== playerId);
-        savePlayers();
-        renderAll();
-        showToast("プレイヤー登録申請を却下しました。");
+      if (player) {
+        showAppConfirmModal(
+          "プレイヤー申請の却下",
+          `「${player.name}」さんの新規登録申請を却下し、データを完全に削除しますか？`,
+          true,
+          function() {
+            players = players.filter(p => p.id !== playerId);
+            savePlayers();
+            renderAll();
+            showToast("プレイヤー登録申請を却下しました。");
+          }
+        );
       }
     }
 
-    // プロフィール編集の承認
     function approvePlayerEdit(playerId) {
       const pIdx = players.findIndex(p => p.id === playerId);
       if (pIdx !== -1 && players[pIdx].editPending) {
@@ -1641,7 +1755,7 @@
         players[pIdx].name = editData.name;
         players[pIdx].discordId = editData.discordId;
         players[pIdx].avatar = editData.avatar;
-        players[pIdx].editPending = null; // 申請クリア
+        players[pIdx].editPending = null; 
         
         savePlayers();
         renderAll();
@@ -1649,108 +1763,42 @@
       }
     }
 
-    // プロフィール編集の却下
     function rejectPlayerEdit(playerId) {
       const pIdx = players.findIndex(p => p.id === playerId);
-      if (pIdx !== -1 && confirm(`「${players[pIdx].name}」さんのプロフィール編集申請を却下しますか？`)) {
-        players[pIdx].editPending = null; // 申請のみ却下
-        savePlayers();
-        renderAll();
-        showToast("プロフィール編集申請を却下しました。");
+      if (pIdx !== -1) {
+        showAppConfirmModal(
+          "編集申請の却下",
+          `「${players[pIdx].name}」さんのプロフィール変更申請を却下しますか？（現在のプロフィール情報は維持されます）`,
+          true,
+          function() {
+            players[pIdx].editPending = null; 
+            savePlayers();
+            renderAll();
+            showToast("プロフィール編集申請を却下しました。");
+          }
+        );
       }
     }
 
     // --- 各種アクション処理（戦績登録・コピーなど） ---
 
-    function copyLastMatch() {
-      const sorted = [...matches].sort((a,b) => b.createdAt - a.createdAt);
-      if (sorted.length === 0) {
-        showToast("コピー元となる対戦履歴がありません。");
-        return;
-      }
-      const last = sorted[0];
-      selectedMemberIds = [...last.members];
-      selectedWinnerId = last.winnerId;
-
-      const stats = computePlayerStats();
-      renderMemberSelection(Object.values(stats));
-      showToast("直近 of 対戦メンバーをコピーしました！");
-    }
-
-    function openHistoryCopyModal() {
-      const modal = document.getElementById('history-modal');
-      const container = document.getElementById('modal-history-list');
-      container.innerHTML = "";
-
-      const sorted = [...matches].sort((a,b) => b.createdAt - a.createdAt);
-      if (sorted.length === 0) {
-        showToast("履歴がありません。");
-        return;
-      }
-
-      sorted.forEach(match => {
-        const winner = players.find(p => p.id === match.winnerId);
-        const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(", ");
-        const statusBadge = match.status === 'approved' 
-          ? `<span class="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1 py-0.5 rounded">承認済</span>`
-          : `<span class="bg-amber-100 text-amber-800 text-[8px] font-bold px-1 py-0.5 rounded">申請中</span>`;
-
-        const card = document.createElement('div');
-        card.className = "bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center hover:bg-slate-100 transition";
-        card.innerHTML = `
-          <div>
-            <div class="flex items-center gap-1.5 mb-1">
-              ${statusBadge}
-              <span class="text-[9px] text-slate-400 font-mono">${match.date}</span>
-            </div>
-            <div class="text-[11px] text-slate-700 truncate max-w-sm"><span class="font-bold">メンバー:</span> ${membersNames}</div>
-            <div class="text-[11px] text-amber-700 font-bold mt-0.5">👑 勝者: ${winner ? winner.name : '未選定'}</div>
-          </div>
-          <button onclick="applyCopiedHistory('${match.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg transition shrink-0">
-            セットする
-          </button>
-        `;
-        container.appendChild(card);
-      });
-
-      modal.classList.remove('hidden');
-    }
-
-    function closeHistoryCopyModal() {
-      document.getElementById('history-modal').classList.add('hidden');
-    }
-
-    function applyCopiedHistory(matchId) {
-      const match = matches.find(m => m.id === matchId);
-      if (match) {
-        selectedMemberIds = [...match.members];
-        selectedWinnerId = match.winnerId;
-
-        const stats = computePlayerStats();
-        renderMemberSelection(Object.values(stats));
-        closeHistoryCopyModal();
-        showToast("対戦メンバーを復元しました！");
-      }
-    }
-
     function submitMatch() {
       const dateVal = document.getElementById('match-date').value;
       if (!dateVal) {
-        alert("プレイ日を選択してください。");
+        showAppWarningModal("プレイ日を選択してください。");
         return;
       }
       if (selectedMemberIds.length === 0) {
-        alert("参加メンバーを1名以上選択してください。");
+        showAppWarningModal("参加メンバーを1名以上選択してください。");
         return;
       }
       
-      // 改良：勝者の未選択を厳格にチェックして警告する
+      // 改良：勝者の未選択を画面中央の確認モーダル（永続的警告）で厳格にブロック
       if (!selectedWinnerId) {
-        showToast("⚠️ 勝者が選択されていません。選択中メンバーリストの中から勝者（1名）をタップしてクラウンを点灯させてください！");
+        showAppWarningModal("勝者が選択されていません。\n選択中メンバーリストの中から、勝者（1名）をタップしてクラウン（王冠）を点灯させてから登録してください！");
         const stepContainer = document.getElementById('winner-step-container');
         if (stepContainer) {
           stepContainer.scrollIntoView({ behavior: 'smooth' });
-          // フラッシュ点滅アニメーションなどで注意を促す
           stepContainer.classList.add('ring-2', 'ring-rose-400');
           setTimeout(() => stepContainer.classList.remove('ring-2', 'ring-rose-400'), 1500);
         }
@@ -1785,10 +1833,15 @@
       } else {
         showToast("戦績を申請しました。管理者の承認をお待ちください。");
         setTimeout(() => {
-          if(confirm("申請を承認するシミュレートを行いますか？\n（ロールを管理者に切り替えて承認コンソールへ案内します）")) {
-            trySwitchToAdmin();
-            scrollToSection('admin-section');
-          }
+          showAppConfirmModal(
+            "承認シミュレーターの案内",
+            "申請した戦績を、管理者として承認するシミュレート（デモ体験）を行いますか？（管理者画面に切り替わります）",
+            false,
+            function() {
+              trySwitchToAdmin();
+              scrollToSection('admin-section');
+            }
+          );
         }, 800);
       }
     }
@@ -1800,18 +1853,23 @@
         saveMatches();
         renderAll();
         updateBoardDateTime();
-        showToast("戦績の申請を承認しました！ダッシュボードに反映されました。");
+        showToast("戦績の申請を承認しました！");
       }
     }
 
     function deleteMatch(matchId) {
-      if(confirm("この戦績データを削除しますか？")) {
-        matches = matches.filter(m => m.id !== matchId);
-        saveMatches();
-        renderAll();
-        updateBoardDateTime();
-        showToast("戦績データを削除しました。");
-      }
+      showAppConfirmModal(
+        "戦績データの削除",
+        "この戦績データを削除しますか？（削除後はランキングから該当データが即時マイナスされます）",
+        true,
+        function() {
+          matches = matches.filter(m => m.id !== matchId);
+          saveMatches();
+          renderAll();
+          updateBoardDateTime();
+          showToast("戦績データを削除しました。");
+        }
+      );
     }
 
     // プレイヤーの追加 (コピペ＆手動。承認待ちフローに対応)
@@ -1823,13 +1881,13 @@
       const fileInput = document.getElementById('new-player-avatar-file');
 
       if (!name) {
-        alert("ユーザー名を入力してください。");
+        showAppWarningModal("ユーザー名を入力してください。");
         return;
       }
 
       // 重複チェック
       if (players.some(p => p.name === name)) {
-        alert("同じ名前のプレイヤーが既に登録されています。");
+        showAppWarningModal("同じ名前のプレイヤーが既に登録されています。");
         return;
       }
 
@@ -1838,7 +1896,7 @@
         const newP = {
           id: "p_" + Date.now(),
           name: name,
-          discordId: discordId, // なければブランク
+          discordId: discordId, 
           avatar: finalAvatar,
           customTriangleColor: "",
           status: isApproved ? "approved" : "pending",
@@ -1859,25 +1917,23 @@
         if (isApproved) {
           showToast(`「${name}」さんをプレイヤー登録しました。`);
         } else {
-          showToast(`「${name}」さんのプレイヤー追加申請を送信しました（承認待ち）。\n承認待ちの間でも、上の戦績選択でメンバーとしてすぐに起用可能です！`);
+          showToast(`「${name}」さんのプレイヤー追加申請を送信しました。`);
         }
       };
 
       if (tempAvatarBase64 !== "") {
-        // コピペまたはファイルアップロード画像
         saveNewPlayer(tempAvatarBase64);
       } else {
-        // 画像指定なし：ロボットアバター、もしくはイニシャルアバター
         saveNewPlayer("");
       }
     }
 
-    // クイック生成（Discord IDから名前とDiscord風ロボアバターを自動生成）
+    // クイック生成
     function generateDiscordPlayer() {
       const dIdInput = document.getElementById('new-player-discord-id');
       const discordId = dIdInput.value.trim();
       if (!discordId) {
-        alert("DiscordユーザーID（英数字のID）を入力してください。");
+        showAppWarningModal("DiscordユーザーID（英数字のID）を入力してください。");
         return;
       }
 
@@ -1890,13 +1946,12 @@
         guessedName += ` (${Math.floor(Math.random()*100)})`;
       }
 
-      // フォームに値をセットしてプレビューを更新する
       document.getElementById('new-player-name').value = guessedName;
       document.getElementById('new-player-avatar-file').value = "";
       tempAvatarBase64 = "";
       
       updateAvatarPreview();
-      showToast(`「${guessedName}」を推測生成しました！問題なければ追加ボタンを押してください。`);
+      showToast("名前とアバター候補を推測生成しました！");
     }
 
     // --- その他UIアシストツール ---
@@ -1904,7 +1959,10 @@
     function showToast(message) {
       const toast = document.getElementById('status-toast');
       const text = document.getElementById('status-toast-text');
+      const icon = document.getElementById('toast-icon');
+      
       text.innerText = message;
+      icon.className = "fa-solid fa-circle-check text-emerald-400 text-lg shrink-0";
       toast.classList.remove('hidden');
 
       if (window.toastTimeout) clearTimeout(window.toastTimeout);
@@ -1975,28 +2033,24 @@
       showToast("撮影用に最適化中... しばらくお待ちください。");
       
       const target = document.getElementById('dashboard-capture');
-      const gridContainer = document.getElementById('players-grid-container');
       
       const options = {
         scale: 2,
         useCORS: true,
         backgroundColor: '#f7f8fa',
         logging: false,
-        windowWidth: 1240, // 仮想幅
+        windowWidth: 1240, 
         onclone: (clonedDoc) => {
-          // スクロール制限解除
           const clonedGrid = clonedDoc.getElementById('players-grid-container');
           if (clonedGrid) {
             clonedGrid.style.maxHeight = 'none';
             clonedGrid.style.overflowY = 'visible';
             clonedGrid.classList.remove('max-h-[500px]', 'overflow-y-auto');
           }
-          // スマホ潰れ対策
           const clonedCapture = clonedDoc.getElementById('dashboard-capture');
           if (clonedCapture) {
             clonedCapture.style.width = '1200px';
           }
-          // html2canvas特有の「文字切れバグ」を防ぐための強制スタイル適用
           const truncates = clonedDoc.querySelectorAll('.truncate');
           truncates.forEach(el => {
             el.style.overflow = 'visible';
@@ -2021,7 +2075,7 @@
             link.click();
             document.body.removeChild(link);
 
-            showToast("高画質PNG画像の保存に成功しました！全員が綺麗に収まっています。");
+            showToast("高画質PNG画像の保存に成功しました！");
           } catch (err) {
             console.error(err);
             alert("画像生成中にエラーが発生しました。");
@@ -2033,7 +2087,7 @@
     function exportToCSV() {
       const approvedList = matches.filter(m => m.status === 'approved').sort((a,b) => a.createdAt - b.createdAt);
       if (approvedList.length === 0) {
-        alert("エポートできる承認済み戦績がありません。");
+        showAppWarningModal("エクスポートできる承認済み戦績がありません。");
         return;
       }
 
@@ -2058,7 +2112,7 @@
       link.click();
       document.body.removeChild(link);
 
-      showToast("CSVファイルのエクスポートに成功しました！Googleスプレッドシート等に読み込ませてください。");
+      showToast("CSVファイルのエクスポートに成功しました！");
     }
 
   </script>
