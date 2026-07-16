@@ -70,7 +70,7 @@
           </button>
         </div>
         <!-- バージョン番号表示（更新確認用） -->
-        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161450</span>
+        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161455</span>
       </div>
     </div>
   </header>
@@ -672,41 +672,68 @@
     let players = [];
     let matches = [];
 
+    // --- ボードの日時を更新する関数の定義 (消失していた不具合を完全に修正) ---
+    function updateBoardDateTime() {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const formatted = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      const boardDateEl = document.getElementById('current-board-date');
+      if (boardDateEl) {
+        boardDateEl.innerText = formatted;
+      }
+    }
+
     // --- 【新設】カスタム警告/確認ダイアログの表示制御ロジック ---
     function showAppWarningModal(message) {
-      document.getElementById('app-warning-text').innerText = message;
-      document.getElementById('app-warning-modal').classList.remove('hidden');
+      const warningText = document.getElementById('app-warning-text');
+      const warningModal = document.getElementById('app-warning-modal');
+      if (warningText && warningModal) {
+        warningText.innerText = message;
+        warningModal.classList.remove('hidden');
+      }
     }
 
     function closeAppWarningModal() {
-      document.getElementById('app-warning-modal').classList.add('hidden');
+      const warningModal = document.getElementById('app-warning-modal');
+      if (warningModal) {
+        warningModal.classList.add('hidden');
+      }
     }
 
     // confirmの代用：カスタム確認モーダルの呼び出し
     function showAppConfirmModal(title, text, isDanger, onConfirm) {
-      document.getElementById('confirm-modal-title').innerText = title;
-      document.getElementById('confirm-modal-text').innerText = text;
+      const modalTitle = document.getElementById('confirm-modal-title');
+      const modalText = document.getElementById('confirm-modal-text');
+      const confirmModal = document.getElementById('app-confirm-modal');
       
-      const iconBg = document.getElementById('confirm-modal-icon-bg');
-      const icon = document.getElementById('confirm-modal-icon');
-      const yesBtn = document.getElementById('confirm-modal-yes-btn');
+      if (modalTitle && modalText && confirmModal) {
+        modalTitle.innerText = title;
+        modalText.innerText = text;
+        
+        const iconBg = document.getElementById('confirm-modal-icon-bg');
+        const icon = document.getElementById('confirm-modal-icon');
+        const yesBtn = document.getElementById('confirm-modal-yes-btn');
 
-      if (isDanger) {
-        iconBg.className = "bg-rose-100 text-rose-600 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-inner mx-auto";
-        icon.className = "fa-solid fa-trash-can animate-pulse";
-        yesBtn.className = "flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition";
-      } else {
-        iconBg.className = "bg-amber-100 text-amber-600 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-inner mx-auto";
-        icon.className = "fa-solid fa-triangle-exclamation";
-        yesBtn.className = "flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition";
+        if (isDanger) {
+          iconBg.className = "bg-rose-100 text-rose-600 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-inner mx-auto";
+          icon.className = "fa-solid fa-trash-can animate-pulse";
+          yesBtn.className = "flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition";
+        } else {
+          iconBg.className = "bg-amber-100 text-amber-600 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-inner mx-auto";
+          icon.className = "fa-solid fa-triangle-exclamation";
+          yesBtn.className = "flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition";
+        }
+
+        confirmCallback = onConfirm;
+        confirmModal.classList.remove('hidden');
       }
-
-      confirmCallback = onConfirm;
-      document.getElementById('app-confirm-modal').classList.remove('hidden');
     }
 
     function closeAppConfirmModal() {
-      document.getElementById('app-confirm-modal').classList.add('hidden');
+      const confirmModal = document.getElementById('app-confirm-modal');
+      if (confirmModal) {
+        confirmModal.classList.add('hidden');
+      }
       confirmCallback = null;
     }
 
@@ -774,35 +801,6 @@
       } else {
         errorEl.classList.remove('hidden');
       }
-    }
-
-    // パスワード変更処理
-    function changeAdminPassword() {
-      const currentPwd = document.getElementById('change-pwd-current').value;
-      const newPwd = document.getElementById('change-pwd-new').value;
-      const confirmPwd = document.getElementById('change-pwd-confirm').value;
-
-      if (currentPwd !== adminPassword) {
-        alert("現在のパスワードが間違っています。");
-        return;
-      }
-      if (!newPwd) {
-        alert("新しいパスワードを入力してください。");
-        return;
-      }
-      if (newPwd !== confirmPwd) {
-        alert("新しいパスワードと確認用入力が一致しません。");
-        return;
-      }
-
-      adminPassword = newPwd;
-      localStorage.setItem(STORAGE_PREFIX + "admin_password", adminPassword);
-
-      document.getElementById('change-pwd-current').value = "";
-      document.getElementById('change-pwd-new').value = "";
-      document.getElementById('change-pwd-confirm').value = "";
-
-      showToast("管理者パスワードを正常に変更しました！");
     }
 
     function switchRole(role) {
