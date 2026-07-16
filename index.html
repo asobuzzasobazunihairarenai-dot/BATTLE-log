@@ -23,6 +23,15 @@
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    /* コピペエリアのアニメーション */
+    .paste-zone {
+      transition: all 0.2s ease-in-out;
+    }
+    .paste-zone:focus-within, .paste-zone.dragover {
+      border-color: #6366f1;
+      background-color: #f5f3ff;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+    }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen">
@@ -40,7 +49,7 @@
         </div>
       </div>
       
-      <!-- 権限シミュレーター (体験用・パスワード認証付き) -->
+      <!-- 権限シミュレーター (パスワード認証付き) -->
       <div class="flex flex-col items-end gap-1">
         <div class="flex items-center bg-slate-800 p-1.5 rounded-full border border-slate-700">
           <span class="text-xs px-3 text-slate-300 font-medium">現在の操作ロール:</span>
@@ -52,7 +61,7 @@
           </button>
         </div>
         <!-- バージョン番号表示（更新確認用） -->
-        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607152153</span>
+        <span class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v202607161141</span>
       </div>
     </div>
   </header>
@@ -156,33 +165,80 @@
           </button>
         </section>
 
-        <!-- ② クイックプレイヤー追加ツール -->
-        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 space-y-4">
-          <h2 class="font-bold text-md text-slate-800 flex items-center gap-2 border-b pb-2.5 border-gray-100">
-            <i class="fa-solid fa-user-plus text-sky-500"></i>
-            <span>プレイヤーの追加</span>
-          </h2>
-          <div>
-            <label class="block text-xs font-bold text-gray-500 mb-1">ユーザー名 / Discord表示名</label>
-            <input type="text" id="new-player-name" placeholder="例: Shiina" class="w-full text-sm bg-gray-50 border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition">
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-500 mb-1">Discord風ID (自動登録用シミュレート)</label>
-            <div class="flex gap-2">
-              <input type="text" id="new-player-discord-id" placeholder="例: shiina_7" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-sky-400">
-              <button type="button" onclick="generateDiscordPlayer()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0 transition">
-                ID連携
+        <!-- ② クイックプレイヤー追加ツール (管理者権限がある場合のみ開放) -->
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 relative overflow-hidden">
+          
+          <!-- 一般テスター向けのロック画面オーバーレイ -->
+          <div id="player-add-lock" class="absolute inset-0 bg-slate-900/10 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center p-6 text-center">
+            <div class="bg-white p-5 rounded-2xl shadow-xl max-w-[280px] border border-slate-100 space-y-3 flex flex-col items-center">
+              <div class="bg-rose-100 text-rose-600 w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-inner">
+                <i class="fa-solid fa-lock"></i>
+              </div>
+              <h3 class="font-bold text-slate-800 text-sm">メンバー追加は管理者限定</h3>
+              <p class="text-[11px] text-slate-500 leading-relaxed">
+                新規プレイヤーの追加はホスト管理者のみ可能です。ヘッダーから切り替えてください。<br>
+                <span class="text-indigo-600 font-bold">(初期PW: 0000)</span>
+              </p>
+              <button onclick="trySwitchToAdmin()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold text-[10px] py-1.5 px-3 rounded-lg transition">
+                管理者に切り替える
               </button>
             </div>
-            <p class="text-[10px] text-slate-400 mt-1">※IDを入力して「ID連携」を押すと、Discord標準アイコンを再現して瞬時に自動登録します。</p>
           </div>
-          <div class="border-t border-dashed border-gray-100 pt-3">
-            <label class="block text-xs font-bold text-gray-500 mb-1">手動アバター画像アップロード (任意)</label>
-            <input type="file" id="new-player-avatar" accept="image/*" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100">
+
+          <div class="space-y-4">
+            <h2 class="font-bold text-md text-slate-800 flex items-center gap-2 border-b pb-2.5 border-gray-100">
+              <i class="fa-solid fa-user-plus text-indigo-600"></i>
+              <span>プレイヤーの追加 (管理者専用)</span>
+            </h2>
+            
+            <div>
+              <label class="block text-xs font-bold text-gray-500 mb-1">ユーザー名 / 表示名 (必須)</label>
+              <input type="text" id="new-player-name" oninput="updateAvatarPreview()" placeholder="例: クスノキ" class="w-full text-sm bg-gray-50 border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition">
+            </div>
+            
+            <div>
+              <label class="block text-xs font-bold text-gray-500 mb-1">Discord風ユーザーID / @名 (任意)</label>
+              <input type="text" id="new-player-discord-id" oninput="updateAvatarPreview()" placeholder="例: kusunoki_7" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-400">
+            </div>
+
+            <!-- アバター指定エリア (クリップボード対応) -->
+            <div class="border-t border-dashed border-gray-100 pt-3 space-y-3">
+              <div class="flex justify-between items-center">
+                <label class="block text-xs font-bold text-gray-500">アバター画像の設定</label>
+                <!-- プレビュー種別のテキストバッジ (エラー修正箇所) -->
+                <span id="preview-avatar-type" class="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded">仮アバター</span>
+              </div>
+              
+              <!-- クリップボード貼り付け / プレビュー統合ボックス -->
+              <div id="paste-zone-box" tabindex="0" class="paste-zone border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50 hover:bg-slate-100/50 outline-none">
+                
+                <!-- プレビュー表示用コンテナ -->
+                <div id="preview-avatar-container" class="mb-2">
+                  <!-- JSでアバター画像を動的構築 -->
+                </div>
+                
+                <!-- テキスト説明 -->
+                <div id="paste-zone-text" class="space-y-1">
+                  <p class="text-xs font-black text-slate-700">
+                    <i class="fa-solid fa-paste text-indigo-600 mr-1 animate-pulse"></i>ここをクリックして画像をペースト
+                  </p>
+                  <p class="text-[10px] text-slate-400 leading-normal">
+                    (スクリーンショットやコピーした画像を <kbd class="bg-white border border-slate-200 px-1 py-0.5 rounded text-[9px] font-mono">Ctrl+V</kbd> で貼付け)
+                  </p>
+                </div>
+              </div>
+
+              <!-- ファイルアップロードのフォールバック -->
+              <div class="text-xs">
+                <label class="block text-[10px] font-bold text-gray-400 mb-1">または手動でファイルからアップロード</label>
+                <input type="file" id="new-player-avatar-file" onchange="updateAvatarPreviewFromFile()" accept="image/*" class="w-full text-[10px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+              </div>
+            </div>
+
+            <button type="button" onclick="addPlayerHandy()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-lg shadow-indigo-600/10">
+              この内容でプレイヤーを追加する
+            </button>
           </div>
-          <button type="button" onclick="addPlayerHandy()" class="w-full bg-slate-800 hover:bg-slate-950 text-white font-bold py-2.5 rounded-xl text-xs transition">
-            新規プレイヤーを手動追加
-          </button>
         </section>
 
       </div>
@@ -430,10 +486,13 @@
     let memberSortKey = "playCount"; // 'playCount' | 'alphabetical'
     let searchQuery = "";
 
+    // プレイヤーがローカルにアップロード・コピペ選択した画像データのBase64キャッシュ
+    let tempAvatarBase64 = "";
+
     // 管理者認証用パスワード (初期値は0000、LocalStorageに保存可能)
     let adminPassword = localStorage.getItem(STORAGE_PREFIX + "admin_password") || "0000";
 
-    // カラーパレット (Discordログイン風のイニシャルアバター生成用)
+    // カラーパレット (仮アバター生成用)
     const avatarBgColors = [
       '#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245',
       '#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e67e22'
@@ -494,6 +553,7 @@
 
       updateBoardDateTime();
       renderAll();
+      updateAvatarPreview(); // 追加アバタープレビューの初期化
 
       // パスワード入力フィールドのEnterキー監視
       document.getElementById('admin-password-input').addEventListener('keydown', function(e) {
@@ -501,7 +561,48 @@
           verifyAdminPassword();
         }
       });
+
+      // 貼り付けゾーン(paste-zone-box)のクリップボード貼り付け監視
+      const pasteZone = document.getElementById('paste-zone-box');
+      
+      pasteZone.addEventListener('paste', function(e) {
+        handlePasteEvent(e);
+      });
+      
+      // ドキュメント全体でのPaste監視
+      document.addEventListener('paste', function(e) {
+        const activeTag = document.activeElement.tagName.toLowerCase();
+        if (activeTag === 'input' && document.activeElement.type !== 'file') {
+          return; 
+        }
+        handlePasteEvent(e);
+      });
     };
+
+    // クリップボードからの貼り付けイベント処理
+    function handlePasteEvent(e) {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      let imageFound = false;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          const reader = new FileReader();
+          reader.onload = function(event) {
+            tempAvatarBase64 = event.target.result;
+            updateAvatarPreview();
+            showToast("アバター画像をコピペから取得しました！");
+          };
+          reader.readAsDataURL(blob);
+          imageFound = true;
+          break;
+        }
+      }
+      
+      if (!imageFound && e.currentTarget && e.currentTarget.id === 'paste-zone-box') {
+        showToast("貼り付けられたデータに画像が見つかりませんでした。");
+      }
+    }
 
     function updateBoardDateTime() {
       const now = new Date();
@@ -538,26 +639,13 @@
       localStorage.setItem(STORAGE_PREFIX + "matches", JSON.stringify(matches));
     }
 
-    function resetToDefaultData() {
-      if(confirm("データをテスト用の初期状態に戻してもよろしいですか？（現在のすべての追加プレイヤーと戦績がリセットされます）")) {
-        players = JSON.parse(JSON.stringify(defaultPlayers));
-        matches = JSON.parse(JSON.stringify(defaultMatches));
-        savePlayers();
-        saveMatches();
-        renderAll();
-        showToast("データを初期状態にリセットしました。");
-      }
-    }
-
     // --- ロール（権限）の変更とパスワード制限 ---
     function trySwitchToAdmin() {
       if (currentRole === 'admin') {
-        // すでに管理者ならパスワードなしでテスターへ戻せる
         switchRole('tester');
         return;
       }
       
-      // パスワードモーダルを表示
       document.getElementById('admin-password-input').value = "";
       document.getElementById('password-error').classList.add('hidden');
       document.getElementById('password-modal').classList.remove('hidden');
@@ -619,6 +707,7 @@
       const formBadge = document.getElementById('form-badge');
       const submitBtnText = document.getElementById('submit-btn-text');
       const adminSection = document.getElementById('admin-section');
+      const playerAddLock = document.getElementById('player-add-lock');
 
       if (role === 'admin') {
         adminBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 bg-indigo-600 text-white shadow-sm";
@@ -628,6 +717,7 @@
         formBadge.className = "bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
         submitBtnText.innerText = "戦績を即時登録 (承認済み)";
         adminSection.classList.remove('hidden');
+        playerAddLock.classList.add('hidden'); // 管理者：追加ツールのロックを外す
       } else {
         testerBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 bg-indigo-600 text-white shadow-sm";
         adminBtn.className = "text-xs font-bold py-1 px-3 rounded-full transition-all duration-200 text-slate-400 hover:text-white ml-1";
@@ -636,6 +726,7 @@
         formBadge.className = "bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
         submitBtnText.innerText = "戦績を申請する (承認待ちへ)";
         adminSection.classList.add('hidden');
+        playerAddLock.classList.remove('hidden'); // テスター：追加ツールをがっちりロック
       }
       showToast(`操作権限を「${role === 'admin' ? '管理者' : '一般テスター'}」に切り替えました。`);
     }
@@ -718,7 +809,22 @@
       document.getElementById('total-players-badge').innerText = `登録者: ${players.length}人`;
     }
 
-    // ランキングの構築（バッジをアバターに重ねて横スペースを究極節約する超堅牢レイアウト）
+    // アバターゲット用の汎用ヘルパー（本物の画像、コピペ画像、イニシャルを判定）
+    function getPlayerAvatarSrc(player) {
+      if (player.avatar && player.avatar.trim() !== "") {
+        return player.avatar;
+      }
+      
+      // 画像指定がない場合はDicebearのロボット
+      if (player.discordId && player.discordId.trim() !== "") {
+        const cleanId = player.discordId.trim().toLowerCase();
+        return `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanId)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+      }
+      
+      return null;
+    }
+
+    // ランキングの構築（バッジをアバターに重ねて横スペースを配置制限）
     function renderTop3Ranking(statsList) {
       const container = document.getElementById('top3-ranking-container');
       container.innerHTML = "";
@@ -737,23 +843,22 @@
       }
 
       top3.forEach((player, idx) => {
-        // メダルの absolute オーバーレイバッジ
         const badgeColors = [
-          "bg-amber-500 text-white border-yellow-300 shadow-md shadow-amber-500/30", // 1st 金
-          "bg-slate-400 text-white border-slate-200 shadow-md shadow-slate-400/30",  // 2nd 銀
-          "bg-amber-700 text-white border-amber-500 shadow-md shadow-amber-700/30"  // 3rd 銅
+          "bg-amber-500 text-white border-yellow-300 shadow-md shadow-amber-500/30", 
+          "bg-slate-400 text-white border-slate-200 shadow-md shadow-slate-400/30",  
+          "bg-amber-700 text-white border-amber-500 shadow-md shadow-amber-700/30"  
         ];
         const badgeTexts = ["🥇", "🥈", "🥉"];
 
-        // アバターHTML（親側で absolute 重ねをするため、アバター生成を一部展開）
-        const sizePx = 40; // w-10 = 40px
+        const sizePx = 40; 
         const trigSize = 14;
         const color = getContributionColor(player.matchesCount, player.customTriangleColor);
         const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
 
         let avatarImgHtml = "";
-        if (player.avatar) {
-          avatarImgHtml = `<img src="${player.avatar}" class="w-full h-full object-cover">`;
+        const avatarSrc = getPlayerAvatarSrc(player);
+        if (avatarSrc) {
+          avatarImgHtml = `<img src="${avatarSrc}" class="w-full h-full object-cover bg-slate-100">`;
         } else {
           const char = player.name ? player.name.charAt(0).toUpperCase() : '?';
           const bgIdx = Math.abs(player.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % avatarBgColors.length;
@@ -765,18 +870,14 @@
           `;
         }
 
-        // アバター＋絶対配置バッジをパッケージ化
         const avatarWithBadgeHtml = `
           <div class="relative shrink-0" title="${tooltip}">
-            <!-- アバター本体 -->
-            <div class="rounded-full border border-slate-200 overflow-hidden shadow-inner" style="width: ${sizePx}px; height: ${sizePx}px;">
+            <div class="rounded-full border border-slate-200 overflow-hidden shadow-inner bg-slate-50" style="width: ${sizePx}px; height: ${sizePx}px;">
               ${avatarImgHtml}
-              <!-- 三角マーク -->
               <div class="absolute bottom-0 right-0 triangle-indicator" 
                    style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
               </div>
             </div>
-            <!-- 絶対配置の順位バッジ (左上に綺麗にオーバーレイ) -->
             <div class="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full border flex items-center justify-center text-[10px] font-black ${badgeColors[idx]} z-10">
               ${badgeTexts[idx]}
             </div>
@@ -784,10 +885,8 @@
         `;
         
         const row = document.createElement('div');
-        // grid-cols-12 で左側（名前＋バッジアバター）に 8カラム、右側（スタッツ）に 4カラム をカチッと割り当てる
         row.className = "p-2 rounded-xl bg-slate-50 border border-slate-100 hover:shadow-sm transition grid grid-cols-12 gap-1 items-center";
         row.innerHTML = `
-          <!-- 左側：バッジ付きアバター ＋ 名前 (8カラム) -->
           <div class="col-span-8 flex items-center gap-2.5 min-w-0">
             ${avatarWithBadgeHtml}
             <div class="min-w-0 flex-1 flex flex-col justify-center py-0.5">
@@ -796,7 +895,6 @@
             </div>
           </div>
           
-          <!-- 右側：スタッツ (4カラム、完全に右寄せ固定) -->
           <div class="col-span-4 flex items-center justify-end gap-1 font-mono text-center shrink-0">
             <div class="w-9 bg-white rounded-lg py-1 border border-slate-100/80 shadow-sm">
               <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">勝率</span>
@@ -812,7 +910,7 @@
       });
     }
 
-    // プレイヤー個別カードの構築（グリッド境界により100%重なりを防ぐ堅牢な2Dレイアウト）
+    // プレイヤー個別カードの構築（グリッド境界）
     function renderPlayersGrid(statsList) {
       const container = document.getElementById('players-grid-container');
       container.innerHTML = "";
@@ -823,10 +921,8 @@
         const avatarHtml = getAvatarElementHtml(player, 10);
         
         const card = document.createElement('div');
-        // grid-cols-12 を使用して左半分(7カラム)と右半分(5カラム)の境界線を完全に分離
         card.className = "bg-white border border-slate-200/80 rounded-xl p-2.5 grid grid-cols-12 gap-2 items-center hover:border-indigo-200 transition-colors shadow-sm";
         card.innerHTML = `
-          <!-- 左側領域 (7カラム分占有、中身がどれだけ縮んでもスタッツ領域に被らない) -->
           <div class="col-span-7 flex items-center gap-2 min-w-0">
             <div class="shrink-0">
               ${avatarHtml}
@@ -837,7 +933,6 @@
             </div>
           </div>
           
-          <!-- 右側領域 (5カラム分占有、右寄せ固定) -->
           <div class="col-span-5 flex items-center justify-end gap-1 font-mono text-center shrink-0">
             <div class="w-8 sm:w-10 bg-slate-50 border border-slate-100 rounded-lg py-1">
               <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">対戦</span>
@@ -865,8 +960,9 @@
       const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
 
       let avatarImgHtml = "";
-      if (player.avatar) {
-        avatarImgHtml = `<img src="${player.avatar}" class="w-full h-full object-cover">`;
+      const avatarSrc = getPlayerAvatarSrc(player);
+      if (avatarSrc) {
+        avatarImgHtml = `<img src="${avatarSrc}" class="w-full h-full object-cover bg-slate-100">`;
       } else {
         const char = player.name ? player.name.charAt(0).toUpperCase() : '?';
         const bgIdx = Math.abs(player.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % avatarBgColors.length;
@@ -879,14 +975,65 @@
       }
 
       return `
-        <div class="relative rounded-full border border-slate-200 overflow-hidden shrink-0 shadow-inner" style="width: ${sizePx}px; height: ${sizePx}px;" title="${tooltip}">
+        <div class="relative rounded-full border border-slate-200 overflow-hidden shrink-0 shadow-inner bg-slate-50" style="width: ${sizePx}px; height: ${sizePx}px;" title="${tooltip}">
           ${avatarImgHtml}
-          <!-- 三角マーク（右下斜めカット） -->
+          <!-- 三角マーク -->
           <div class="absolute bottom-0 right-0 triangle-indicator" 
                style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
           </div>
         </div>
       `;
+    }
+
+    // 追加フォーム内でのリアルタイムアバタープレビューの更新 (エラー安全対策済み)
+    function updateAvatarPreview() {
+      const name = document.getElementById('new-player-name').value.trim();
+      const discordId = document.getElementById('new-player-discord-id').value.trim();
+      const previewContainer = document.getElementById('preview-avatar-container');
+      const previewTypeText = document.getElementById('preview-avatar-type');
+
+      const dummyPlayer = {
+        name: name || "サンプル",
+        discordId: discordId,
+        avatar: "",
+        matchesCount: 0,
+        customTriangleColor: ""
+      };
+
+      let typeText = "頭文字の仮アバター";
+
+      if (tempAvatarBase64 !== "") {
+        dummyPlayer.avatar = tempAvatarBase64;
+        typeText = "コピペ / アップロード画像";
+      } else if (discordId !== "") {
+        typeText = "Discord風ロボアバター";
+      }
+
+      // バグ修正: 要素の存在をチェックする安全ガードを仕込みました
+      if (previewTypeText) {
+        previewTypeText.innerText = typeText;
+      }
+
+      if (previewContainer) {
+        const avatarHtml = getAvatarElementHtml(dummyPlayer, 10);
+        previewContainer.innerHTML = avatarHtml;
+      }
+    }
+
+    // ファイルアップロード時のプレビュー処理
+    function updateAvatarPreviewFromFile() {
+      const fileInput = document.getElementById('new-player-avatar-file');
+      if (fileInput.files && fileInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          tempAvatarBase64 = e.target.result;
+          updateAvatarPreview();
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+      } else {
+        tempAvatarBase64 = "";
+        updateAvatarPreview();
+      }
     }
 
     // フォーム用：メンバー一覧チェックボックス
@@ -1110,7 +1257,7 @@
 
       const stats = computePlayerStats();
       renderMemberSelection(Object.values(stats));
-      showToast("直近の対戦メンバーをコピーしました！");
+      showToast("直近 of 対戦メンバーをコピーしました！");
     }
 
     function openHistoryCopyModal() {
@@ -1241,28 +1388,31 @@
       }
     }
 
+    // プレイヤーの追加 (コピペ＆手動)
     function addPlayerHandy() {
       const nameInput = document.getElementById('new-player-name');
       const name = nameInput.value.trim();
-      const discordId = document.getElementById('new-player-discord-id').value.trim();
-      const fileInput = document.getElementById('new-player-avatar');
+      const discordIdInput = document.getElementById('new-player-discord-id');
+      const discordId = discordIdInput.value.trim();
+      const fileInput = document.getElementById('new-player-avatar-file');
 
       if (!name) {
         alert("ユーザー名を入力してください。");
         return;
       }
 
-      const addNew = (avatarBase64 = "") => {
-        if (players.some(p => p.name === name)) {
-          alert("同じ名前のプレイヤーが既に登録されています。");
-          return;
-        }
+      // 重複チェック
+      if (players.some(p => p.name === name)) {
+        alert("同じ名前のプレイヤーが既に登録されています。");
+        return;
+      }
 
+      const saveNewPlayer = (finalAvatar = "") => {
         const newP = {
           id: "p_" + Date.now(),
           name: name,
           discordId: discordId || name.toLowerCase() + "_shades",
-          avatar: avatarBase64,
+          avatar: finalAvatar,
           customTriangleColor: ""
         };
 
@@ -1270,28 +1420,31 @@
         savePlayers();
         renderAll();
 
+        // フォームリセット
         nameInput.value = "";
-        document.getElementById('new-player-discord-id').value = "";
+        discordIdInput.value = "";
         fileInput.value = "";
+        tempAvatarBase64 = "";
+        updateAvatarPreview();
+
         showToast(`「${name}」を追加しました。`);
       };
 
-      if (fileInput.files && fileInput.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          addNew(e.target.result);
-        };
-        reader.readAsDataURL(fileInput.files[0]);
+      if (tempAvatarBase64 !== "") {
+        // コピペまたはファイルアップロード画像
+        saveNewPlayer(tempAvatarBase64);
       } else {
-        addNew("");
+        // 画像指定なし：ロボットアバター、もしくはイニシャルアバター
+        saveNewPlayer("");
       }
     }
 
+    // クイック生成（Discord IDから名前とDiscord風ロボアバターを自動生成）
     function generateDiscordPlayer() {
       const dIdInput = document.getElementById('new-player-discord-id');
       const discordId = dIdInput.value.trim();
       if (!discordId) {
-        alert("Discord風IDを入力してください。（例: kuro_neko）");
+        alert("Discord風ID（英数字のID）を入力してください。");
         return;
       }
 
@@ -1304,21 +1457,13 @@
         guessedName += ` (${Math.floor(Math.random()*100)})`;
       }
 
-      const newP = {
-        id: "p_" + Date.now(),
-        name: guessedName,
-        discordId: discordId,
-        avatar: "",
-        customTriangleColor: ""
-      };
-
-      players.push(newP);
-      savePlayers();
-      renderAll();
-
-      document.getElementById('new-player-name').value = "";
-      dIdInput.value = "";
-      showToast(`Discord自動登録成功: ${guessedName} さんが参加しました！`);
+      // フォームに値をセットしてプレビューを更新する
+      document.getElementById('new-player-name').value = guessedName;
+      document.getElementById('new-player-avatar-file').value = "";
+      tempAvatarBase64 = "";
+      
+      updateAvatarPreview();
+      showToast(`「${guessedName}」を推測生成しました！問題なければ追加ボタンを押してください。`);
     }
 
     // --- その他UIアシストツール ---
@@ -1378,8 +1523,8 @@
     function restoreNormalMode() {
       isOptimizeMode = false;
       const optimizeBtn = document.getElementById('optimize-mode-btn');
-      optimizeBtn.innerHTML = `<i class="fa-solid fa-expand"></i> スクショ最適化`;
       optimizeBtn.className = "bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5";
+      optimizeBtn.innerHTML = `<i class="fa-solid fa-expand"></i> スクショ最適化`;
 
       document.querySelector('header').classList.remove('hidden');
       document.querySelector('footer').classList.remove('hidden');
