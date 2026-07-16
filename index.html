@@ -737,14 +737,7 @@
       confirmCallback = null;
     }
 
-    function executeAppConfirm() {
-      if (confirmCallback) {
-        confirmCallback();
-      }
-      closeAppConfirmModal();
-    }
-
-    // --- データのロード・保存 (復元された極めて重要な定義群) ---
+    // --- データのロード・保存 ---
     function savePlayers() {
       localStorage.setItem(STORAGE_PREFIX + "players", JSON.stringify(players));
     }
@@ -759,6 +752,19 @@
 
       if (loadedPlayers) {
         players = JSON.parse(loadedPlayers);
+        // 【超重要フォールバック】
+        // 古いバージョンの LocalStorage に status フィールド（approved）がないプレイヤーが存在する場合、
+        // フィルターで消えて「0人」になるのを防ぐため、自動的に "approved" を付与します。
+        let needSave = false;
+        players.forEach(p => {
+          if (!p.status) {
+            p.status = "approved";
+            needSave = true;
+          }
+        });
+        if (needSave) {
+          savePlayers();
+        }
       } else {
         players = [...defaultPlayers];
         savePlayers();
@@ -766,10 +772,27 @@
 
       if (loadedMatches) {
         matches = JSON.parse(loadedMatches);
+        let needSave = false;
+        matches.forEach(m => {
+          if (!m.status) {
+            m.status = "approved";
+            needSave = true;
+          }
+        });
+        if (needSave) {
+          saveMatches();
+        }
       } else {
         matches = [...defaultMatches];
         saveMatches();
       }
+    }
+
+    function executeAppConfirm() {
+      if (confirmCallback) {
+        confirmCallback();
+      }
+      closeAppConfirmModal();
     }
 
     // --- ロール（権限）の変更とパスワード制限 ---
