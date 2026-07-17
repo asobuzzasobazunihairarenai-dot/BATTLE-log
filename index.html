@@ -197,6 +197,14 @@
             <input type="file" id="match-proof-file" onchange="updateMatchProofFromFile()" accept="image/*" class="w-full text-[10px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
           </div>
 
+          <!-- 感想・フィードバック欄 (任意) -->
+          <div class="border-t border-slate-100 pt-3 space-y-2">
+            <label class="block text-xs font-bold text-gray-500 flex items-center gap-1.5">
+              <i class="fa-solid fa-comment-dots text-indigo-500"></i> 感想・フィードバック (任意)
+            </label>
+            <textarea id="match-feedback" rows="3" placeholder="今回の対戦の感想や気づいたことがあれば書いてください。" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-400 resize-none"></textarea>
+          </div>
+
           <!-- 申請/登録ボタン -->
           <button type="button" onclick="submitMatch()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-600/20 transition-all text-sm">
             <span id="submit-btn-text">戦績を申請する (承認待ちへ)</span>
@@ -357,6 +365,17 @@
 
           </div>
         </div>
+
+        <!-- 過去の戦績履歴 (参加者含め全員に公開) -->
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5">
+          <h2 class="font-bold text-lg text-slate-800 flex items-center gap-2 border-b pb-3 border-gray-100 mb-3">
+            <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i>
+            過去の戦績履歴
+          </h2>
+          <div id="match-history-container" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+            <!-- JSで動的構築 -->
+          </div>
+        </section>
 
         <!-- ③ 承認管理 ＆ 履歴タブ (管理者用に表示。起動時は確実に非表示にするためhiddenを初期付与) -->
         <section id="admin-section" class="hidden bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 space-y-6">
@@ -816,7 +835,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171036";
+    const BUILD_VERSION = "202607171049";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -996,6 +1015,7 @@
         winnerId: row.winner_id,
         proofImage: row.proof_image_url || "",
         status: row.status,
+        feedback: row.feedback || "",
         createdAt: Number(row.created_at)
       };
     }
@@ -1007,6 +1027,7 @@
         winner_id: m.winnerId,
         proof_image_url: m.proofImage || "",
         status: m.status,
+        feedback: m.feedback || "",
         created_at: m.createdAt
       };
     }
@@ -1307,11 +1328,54 @@
       renderMemberSelection(statsList);
 
       renderAdminConsole();
+      renderPublicMatchHistory();
       updatePendingBanner();
 
       const totalApprovedMatches = matches.filter(m => m.status === 'approved').length;
       document.getElementById('total-matches-count').innerText = `総プレイ承認回数: ${totalApprovedMatches}回`;
       document.getElementById('total-players-badge').innerText = `登録者: ${players.filter(p => p.status === 'approved').length}人`;
+    }
+
+    // 過去の戦績履歴 (参加者を含め全員に公開。新しい順)
+    function renderPublicMatchHistory() {
+      const container = document.getElementById('match-history-container');
+      if (!container) return;
+      container.innerHTML = "";
+
+      const approvedList = [...matches].filter(m => m.status === 'approved').sort((a, b) => b.createdAt - a.createdAt);
+
+      if (approvedList.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-6">承認済みの対戦データがまだありません。</p>`;
+        return;
+      }
+
+      approvedList.forEach(match => {
+        const winner = players.find(p => p.id === match.winnerId);
+        const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(" / ");
+
+        const proofThumbHtml = match.proofImage
+          ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
+          : `<div class="w-16 h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 text-[9px] font-bold text-center shrink-0 p-1">証拠なし</div>`;
+
+        const feedbackHtml = match.feedback && match.feedback.trim() !== ""
+          ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${match.feedback}</p>`
+          : '';
+
+        const item = document.createElement('div');
+        item.className = "border border-slate-200/80 rounded-xl p-3 flex gap-3 items-start";
+        item.innerHTML = `
+          ${proofThumbHtml}
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+              <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
+              <span class="text-xs text-amber-700 font-bold">👑 ${winner ? winner.name : "不明"}</span>
+            </div>
+            <div class="text-xs text-slate-700 truncate"><span class="font-bold">参加:</span> ${membersNames}</div>
+            ${feedbackHtml}
+          </div>
+        `;
+        container.appendChild(item);
+      });
     }
 
     // アバターゲット用の汎用ヘルパー (編集申請中[editPending]があればそちらのアバターを優先して取り出す)
@@ -1968,6 +2032,9 @@
           const proofThumbHtml = match.proofImage
             ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-14 h-14 object-cover rounded-lg border border-amber-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
             : `<div class="w-14 h-14 rounded-lg border border-dashed border-rose-200 bg-rose-50 flex items-center justify-center text-rose-400 text-[9px] font-bold text-center shrink-0 p-1">証拠なし</div>`;
+          const feedbackHtml = match.feedback && match.feedback.trim() !== ""
+            ? `<div class="text-[10px] text-slate-500 bg-white border border-amber-100 rounded-lg p-1.5 mt-1 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${match.feedback}</div>`
+            : '';
           item.innerHTML = `
             <div class="min-w-0 flex-1 flex gap-3 items-start">
               ${proofThumbHtml}
@@ -1978,6 +2045,7 @@
                 </div>
                 <div class="text-xs text-slate-700 truncate"><span class="font-bold">メンバー:</span> ${membersNames}</div>
                 <div class="text-xs text-amber-800 font-bold mt-0.5">👑 勝者: ${winner ? winner.name : '未選定'}</div>
+                ${feedbackHtml}
               </div>
             </div>
             <div class="flex gap-2 w-full sm:w-auto self-end sm:self-center shrink-0">
@@ -2242,6 +2310,8 @@
         return;
       }
 
+      const feedbackVal = document.getElementById('match-feedback').value.trim();
+
       const newMatch = {
         id: "m_" + Date.now(),
         date: dateVal,
@@ -2249,6 +2319,7 @@
         winnerId: selectedWinnerId,
         proofImage: proofUrl,
         status: currentRole === 'admin' ? 'approved' : 'pending',
+        feedback: feedbackVal,
         createdAt: Date.now()
       };
 
@@ -2270,6 +2341,7 @@
       tempMatchProofBase64 = "";
       document.getElementById('match-proof-file').value = "";
       updateMatchProofPreview();
+      document.getElementById('match-feedback').value = "";
 
       const stats = computePlayerStats();
       renderMemberSelection(Object.values(stats));

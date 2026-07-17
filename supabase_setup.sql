@@ -71,3 +71,6 @@ create policy "match_proofs_insert" on storage.objects for insert
   with check (bucket_id = 'match-proofs');
 create policy "match_proofs_select" on storage.objects for select
   using (bucket_id = 'match-proofs');
+
+-- 追加修正: 戦績申請に「感想・フィードバック」コメント欄を追加
+alter table matches add column if not exists feedback text default '';
