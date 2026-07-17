@@ -94,3 +94,13 @@ alter table players add column if not exists seed_wins_count integer not null de
 
 -- 追加機能: 運営枠(ランキング集計から除外するプレイヤー)の設定
 alter table players add column if not exists is_staff boolean not null default false;
+
+-- 追加機能: アクセスログ(管理者コンソールで訪問数を確認できるようにする)
+create table if not exists page_visits (
+  id text primary key,
+  visitor_id text not null,
+  visited_at bigint not null
+);
+alter table page_visits enable row level security;
+create policy "page_visits_select" on page_visits for select using (true);
+create policy "page_visits_insert" on page_visits for insert with check (true);

@@ -523,6 +523,27 @@
           </div>
 
           <!-- 公開前の初期戦績(ベース値)設定セクション -->
+          <!-- アクセスログセクション -->
+          <div class="border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-chart-line text-indigo-600"></i> アクセスログ
+            </h3>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
+                <div class="text-[10px] text-slate-400 font-bold mb-1">総アクセス数</div>
+                <div id="visit-total-count" class="text-xl font-black text-indigo-600">-</div>
+              </div>
+              <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
+                <div class="text-[10px] text-slate-400 font-bold mb-1">ユニーク訪問者数(端末)</div>
+                <div id="visit-unique-count" class="text-xl font-black text-indigo-600">-</div>
+              </div>
+            </div>
+            <div class="text-[10px] text-slate-400 font-bold mb-1">直近のアクセス</div>
+            <div id="visit-recent-list" class="space-y-0.5 max-h-32 overflow-y-auto border border-gray-100 rounded-xl p-2">
+              <!-- JSで動的に構築 -->
+            </div>
+          </div>
+
           <div class="border-t border-dashed border-gray-100 pt-5">
             <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
               <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i> 初期戦績(公開前データ)の設定
@@ -935,7 +956,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171703";
+    const BUILD_VERSION = "202607180109";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1184,6 +1205,49 @@
         return;
       }
       gameComments = data.map(rowToGameComment);
+    }
+
+    // --- アクセスログ ---
+    // タブを開いている間は1回だけ記録する(リロード連打で水増しされないように)
+    function logVisitIfNeeded() {
+      if (sessionStorage.getItem('7shades_visit_logged')) return;
+      sessionStorage.setItem('7shades_visit_logged', '1');
+
+      let visitorId = localStorage.getItem('7shades_visitor_id');
+      if (!visitorId) {
+        visitorId = 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        localStorage.setItem('7shades_visitor_id', visitorId);
+      }
+
+      supabaseClient.from('page_visits').insert({
+        id: 'pv_' + Date.now() + '_' + Math.random().toString(36).slice(2),
+        visitor_id: visitorId,
+        visited_at: Date.now()
+      }).then(({ error }) => {
+        if (error) logDebugEntry(error);
+      });
+    }
+
+    // 管理者コンソール向けのアクセス統計を取得して表示する
+    async function loadVisitStatsForAdmin() {
+      const totalEl = document.getElementById('visit-total-count');
+      const uniqueEl = document.getElementById('visit-unique-count');
+      const recentEl = document.getElementById('visit-recent-list');
+      if (!totalEl) return;
+
+      const { data, error } = await supabaseClient.from('page_visits').select('visitor_id, visited_at').order('visited_at', { ascending: false });
+      if (error) {
+        logDebugEntry(error);
+        return;
+      }
+
+      totalEl.innerText = data.length;
+      uniqueEl.innerText = new Set(data.map(v => v.visitor_id)).size;
+
+      recentEl.innerHTML = data.slice(0, 10).map(v => {
+        const d = new Date(v.visited_at);
+        return `<div class="text-[10px] text-slate-500 font-mono">${d.toLocaleString('ja-JP')}</div>`;
+      }).join('') || '<div class="text-[10px] text-slate-400 italic">まだアクセスがありません。</div>';
     }
 
     // 貼り付け/アップロードされた画像(dataURL)をSupabase Storageにアップロードして公開URLを返す
@@ -2609,6 +2673,10 @@
       }
 
       renderSeedStatsAdmin();
+
+      if (currentRole === 'admin') {
+        loadVisitStatsForAdmin();
+      }
     }
 
     // 公開前の初期戦績(ベース値)設定UIの構築 (管理者のみ)
@@ -3117,6 +3185,7 @@
       updateBuildVersionLabel();
       renderAll();
       subscribeRealtimeSync();
+      logVisitIfNeeded();
 
       // クリップボード貼り付け(Ctrl+V)ゾーンの有効化
       setupPasteZone('paste-zone-box', (dataUrl) => {
