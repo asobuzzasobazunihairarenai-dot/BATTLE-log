@@ -657,10 +657,33 @@
     <img id="image-lightbox-img" src="" class="max-w-full max-h-full rounded-lg shadow-2xl">
   </div>
 
+  <!-- デバッグログモーダル (エラー発生時に内容を確認・コピーして開発者に共有するため) -->
+  <div id="debug-log-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[95] flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-3 shrink-0">
+        <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-bug mr-2 text-rose-500"></i>デバッグログ</h3>
+        <button onclick="closeDebugLogModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <p class="text-xs text-slate-500">エラーが起きた時の詳細です。開発者に伝える際は「コピー」を押して貼り付けてください。</p>
+      <pre id="debug-log-body" class="text-[10px] text-slate-600 bg-slate-50 border border-slate-200 rounded-xl p-3 overflow-y-auto whitespace-pre-wrap break-all flex-1 min-h-[120px]"></pre>
+      <div class="flex justify-end gap-2 pt-2 shrink-0">
+        <button onclick="closeDebugLogModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 px-4 rounded-xl transition">
+          閉じる
+        </button>
+        <button onclick="copyDebugLog()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-md transition">
+          <i class="fa-solid fa-copy mr-1"></i>コピー
+        </button>
+      </div>
+    </div>
+  </div>
+
   <footer class="bg-slate-900 text-slate-500 text-xs py-10 mt-12 border-t border-slate-800">
     <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
       <p>7 SHADES OF S:EVEN Test-play Stat Management System © 2026</p>
       <p class="text-slate-600">Developed in partnership with testing community. Optimized for Discord Image sharing.</p>
+      <button onclick="openDebugLogModal()" class="text-slate-700 hover:text-slate-400 text-[11px] underline underline-offset-2">
+        <i class="fa-solid fa-bug mr-1"></i>デバッグログを見る
+      </button>
     </div>
   </footer>
 
@@ -673,6 +696,43 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const AVATAR_BUCKET = "avatars";
     const PROOF_BUCKET = "match-proofs";
+
+    // --- デバッグログ (エラー発生時に画面から内容を確認・コピーできるようにする) ---
+    let debugLogEntries = [];
+    function logDebugEntry(...args) {
+      const time = new Date().toLocaleString('ja-JP');
+      const text = args.map(a => {
+        if (a instanceof Error) return a.message;
+        if (a && typeof a === 'object') {
+          try { return JSON.stringify(a); } catch (e) { return String(a); }
+        }
+        return String(a);
+      }).join(' ');
+      debugLogEntries.unshift(`[${time}] ${text}`);
+      if (debugLogEntries.length > 50) debugLogEntries.length = 50;
+      console.error(...args);
+    }
+
+    function openDebugLogModal() {
+      const body = document.getElementById('debug-log-body');
+      body.textContent = debugLogEntries.length > 0
+        ? debugLogEntries.join('\n\n')
+        : 'まだエラーは記録されていません。';
+      document.getElementById('debug-log-modal').classList.remove('hidden');
+    }
+
+    function closeDebugLogModal() {
+      document.getElementById('debug-log-modal').classList.add('hidden');
+    }
+
+    function copyDebugLog() {
+      const text = document.getElementById('debug-log-body').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("デバッグログをコピーしました。");
+      }).catch(() => {
+        showAppWarningModal("コピーに失敗しました。テキストを手動で選択してコピーしてください。");
+      });
+    }
 
     let currentRole = "tester"; // 'tester' | 'admin'
     let memberSortKey = "playCount"; // 'playCount' | 'alphabetical'
@@ -756,7 +816,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607170957";
+    const BUILD_VERSION = "202607171036";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -963,14 +1023,14 @@
           upsert: false
         });
         if (error) {
-          console.error(error);
+          logDebugEntry(error);
           showAppWarningModal("画像のアップロードに失敗しました。通信環境を確認してもう一度お試しください。");
           return "";
         }
         const { data } = supabaseClient.storage.from(bucket).getPublicUrl(fileName);
         return data.publicUrl;
       } catch (e) {
-        console.error(e);
+        logDebugEntry(e);
         showAppWarningModal("画像のアップロードに失敗しました。通信環境を確認してもう一度お試しください。");
         return "";
       }
@@ -979,7 +1039,7 @@
     async function loadPlayersFromDB() {
       const { data, error } = await supabaseClient.from('players').select('*').order('created_at', { ascending: true });
       if (error) {
-        console.error(error);
+        logDebugEntry(error);
         showAppWarningModal("プレイヤーデータの取得に失敗しました。通信環境を確認してください。");
         return;
       }
@@ -989,7 +1049,7 @@
     async function loadMatchesFromDB() {
       const { data, error } = await supabaseClient.from('matches').select('*').order('created_at', { ascending: true });
       if (error) {
-        console.error(error);
+        logDebugEntry(error);
         showAppWarningModal("戦績データの取得に失敗しました。通信環境を確認してください。");
         return;
       }
@@ -999,7 +1059,7 @@
     async function loadAdminPasswordFromDB() {
       const { data, error } = await supabaseClient.from('app_settings').select('admin_password').eq('id', 1).maybeSingle();
       if (error || !data) {
-        console.error(error);
+        logDebugEntry(error);
         return;
       }
       adminPassword = data.admin_password;
@@ -1085,7 +1145,7 @@
 
       const { error } = await supabaseClient.from('app_settings').update({ admin_password: newVal }).eq('id', 1);
       if (error) {
-        console.error(error);
+        logDebugEntry(error);
         showAppWarningModal("パスワードの変更に失敗しました。通信環境を確認してください。");
         return;
       }
@@ -1646,7 +1706,7 @@
           edit_pending: null
         }).eq('id', id);
         if (error) {
-          console.error(error);
+          logDebugEntry(error);
           showAppWarningModal("プロフィールの更新に失敗しました。通信環境を確認してください。");
           return;
         }
@@ -1659,7 +1719,7 @@
           edit_pending: { name: name, discordId: discordId, avatar: finalAvatar }
         }).eq('id', id);
         if (error) {
-          console.error(error);
+          logDebugEntry(error);
           showAppWarningModal("編集申請の送信に失敗しました。通信環境を確認してください。");
           return;
         }
@@ -1683,7 +1743,7 @@
         async function() {
           const { error } = await supabaseClient.from('players').delete().eq('id', id);
           if (error) {
-            console.error(error);
+            logDebugEntry(error);
             showAppWarningModal("削除処理に失敗しました。通信環境を確認してください。");
             return;
           }
@@ -1705,7 +1765,7 @@
           const { error: delPlayersErr } = await supabaseClient.from('players').delete().neq('id', '__none__');
           const { error: delMatchesErr } = await supabaseClient.from('matches').delete().neq('id', '__none__');
           if (delPlayersErr || delMatchesErr) {
-            console.error(delPlayersErr, delMatchesErr);
+            logDebugEntry(delPlayersErr, delMatchesErr);
             showAppWarningModal("初期化に失敗しました。通信環境を確認してください。");
             return;
           }
@@ -2069,7 +2129,7 @@
       if (!player) return;
       const { error } = await supabaseClient.from('players').update({ status: 'approved' }).eq('id', playerId);
       if (error) {
-        console.error(error);
+        logDebugEntry(error);
         showAppWarningModal("承認処理に失敗しました。通信環境を確認してください。");
         return;
       }
@@ -2088,7 +2148,7 @@
           async function() {
             const { error } = await supabaseClient.from('players').delete().eq('id', playerId);
             if (error) {
-              console.error(error);
+              logDebugEntry(error);
               showAppWarningModal("却下処理に失敗しました。通信環境を確認してください。");
               return;
             }
@@ -2111,7 +2171,7 @@
         edit_pending: null
       }).eq('id', playerId);
       if (error) {
-        console.error(error);
+        logDebugEntry(error);
         showAppWarningModal("承認処理に失敗しました。通信環境を確認してください。");
         return;
       }
@@ -2130,7 +2190,7 @@
         async function() {
           const { error } = await supabaseClient.from('players').update({ edit_pending: null }).eq('id', playerId);
           if (error) {
-            console.error(error);
+            logDebugEntry(error);
             showAppWarningModal("却下処理に失敗しました。通信環境を確認してください。");
             return;
           }
@@ -2194,7 +2254,7 @@
 
       const { error } = await supabaseClient.from('matches').insert(matchToRow(newMatch));
       if (error) {
-        console.error(error);
+        logDebugEntry(error);
         showAppWarningModal("戦績の登録に失敗しました。通信環境を確認してください。");
         return;
       }
@@ -2237,7 +2297,7 @@
       if (!match) return;
       const { error } = await supabaseClient.from('matches').update({ status: 'approved' }).eq('id', matchId);
       if (error) {
-        console.error(error);
+        logDebugEntry(error);
         showAppWarningModal("承認処理に失敗しました。通信環境を確認してください。");
         return;
       }
@@ -2255,7 +2315,7 @@
         async function() {
           const { error } = await supabaseClient.from('matches').delete().eq('id', matchId);
           if (error) {
-            console.error(error);
+            logDebugEntry(error);
             showAppWarningModal("削除処理に失敗しました。通信環境を確認してください。");
             return;
           }
@@ -2301,7 +2361,7 @@
 
       const { error } = await supabaseClient.from('players').insert(playerToRow(newP));
       if (error) {
-        console.error(error);
+        logDebugEntry(error);
         showAppWarningModal("プレイヤーの登録に失敗しました。通信環境を確認してください。");
         return;
       }
@@ -2472,7 +2532,7 @@
 
             showToast("高画質PNG画像の保存に成功しました！");
           } catch (err) {
-            console.error(err);
+            logDebugEntry(err);
             alert("画像生成中にエラーが発生しました。");
           }
         });

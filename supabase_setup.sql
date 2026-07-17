@@ -59,3 +59,15 @@ create policy "app_settings_update" on app_settings for update using (true);
 alter publication supabase_realtime add table players;
 alter publication supabase_realtime add table matches;
 alter publication supabase_realtime add table app_settings;
+
+-- 追加修正: Storageバケット(avatars, match-proofs)へのアップロードを許可するポリシー
+-- (バケットの「Public」設定は閲覧のみを許可するもので、アップロードには別途ポリシーが必要なため)
+create policy "avatars_insert" on storage.objects for insert
+  with check (bucket_id = 'avatars');
+create policy "avatars_select" on storage.objects for select
+  using (bucket_id = 'avatars');
+
+create policy "match_proofs_insert" on storage.objects for insert
+  with check (bucket_id = 'match-proofs');
+create policy "match_proofs_select" on storage.objects for select
+  using (bucket_id = 'match-proofs');
