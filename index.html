@@ -544,7 +544,6 @@
             </div>
           </div>
 
-          <!-- 公開前の初期戦績(ベース値)設定セクション -->
           <!-- アクセスログセクション -->
           <div class="border-t border-dashed border-gray-100 pt-5">
             <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
@@ -563,6 +562,28 @@
             <div class="text-[10px] text-slate-400 font-bold mb-1">直近のアクセス</div>
             <div id="visit-recent-list" class="space-y-0.5 max-h-32 overflow-y-auto border border-gray-100 rounded-xl p-2">
               <!-- JSで動的に構築 -->
+            </div>
+          </div>
+
+          <!-- メール通知設定セクション -->
+          <div class="border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-envelope text-indigo-600"></i> メール通知設定
+            </h3>
+            <p class="text-[10px] text-slate-400 mb-2.5 leading-relaxed">ONにした項目があったとき、管理者宛にメール通知を送ります(送信には別途Supabase Edge Function等の設定が必要です)。</p>
+            <div class="space-y-2">
+              <label class="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg p-2.5 cursor-pointer">
+                <span class="text-xs font-bold text-slate-600"><i class="fa-solid fa-square-plus text-indigo-500 mr-1.5"></i>戦績申請があったとき</span>
+                <input type="checkbox" id="notify-on-match" onchange="saveNotificationSettings()" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-gray-300">
+              </label>
+              <label class="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg p-2.5 cursor-pointer">
+                <span class="text-xs font-bold text-slate-600"><i class="fa-solid fa-comments text-indigo-500 mr-1.5"></i>ゲームについてのコメントがあったとき</span>
+                <input type="checkbox" id="notify-on-comment" onchange="saveNotificationSettings()" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-gray-300">
+              </label>
+              <label class="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg p-2.5 cursor-pointer">
+                <span class="text-xs font-bold text-slate-600"><i class="fa-solid fa-user-plus text-indigo-500 mr-1.5"></i>プレイヤー登録申請があったとき</span>
+                <input type="checkbox" id="notify-on-player" onchange="saveNotificationSettings()" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-gray-300">
+              </label>
             </div>
           </div>
 
@@ -1001,7 +1022,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607180144";
+    const BUILD_VERSION = "202607180150";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1343,6 +1364,36 @@
         const d = new Date(v.visited_at);
         return `<div class="text-[10px] text-slate-500 font-mono">${d.toLocaleString('ja-JP')}</div>`;
       }).join('') || '<div class="text-[10px] text-slate-400 italic">まだアクセスがありません。</div>';
+    }
+
+    // メール通知設定の読み込み・保存 (管理者のみ)
+    async function loadNotificationSettingsForAdmin() {
+      const matchCb = document.getElementById('notify-on-match');
+      if (!matchCb) return;
+
+      const { data, error } = await supabaseClient.from('app_settings').select('notify_on_match, notify_on_comment, notify_on_player').eq('id', 1).maybeSingle();
+      if (error || !data) {
+        logDebugEntry(error);
+        return;
+      }
+      matchCb.checked = !!data.notify_on_match;
+      document.getElementById('notify-on-comment').checked = !!data.notify_on_comment;
+      document.getElementById('notify-on-player').checked = !!data.notify_on_player;
+    }
+
+    async function saveNotificationSettings() {
+      const payload = {
+        notify_on_match: document.getElementById('notify-on-match').checked,
+        notify_on_comment: document.getElementById('notify-on-comment').checked,
+        notify_on_player: document.getElementById('notify-on-player').checked
+      };
+      const { error } = await supabaseClient.from('app_settings').update(payload).eq('id', 1);
+      if (error) {
+        logDebugEntry(error);
+        showAppWarningModal("通知設定の保存に失敗しました。通信環境を確認してください。");
+        return;
+      }
+      showToast("通知設定を保存しました。");
     }
 
     // 貼り付け/アップロードされた画像(dataURL)をSupabase Storageにアップロードして公開URLを返す
@@ -2795,6 +2846,7 @@
 
       if (currentRole === 'admin') {
         loadVisitStatsForAdmin();
+        loadNotificationSettingsForAdmin();
       }
     }
 

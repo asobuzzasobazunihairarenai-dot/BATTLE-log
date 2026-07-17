@@ -110,3 +110,8 @@ alter table matches add column if not exists duration_minutes integer;
 
 -- 追加機能: 「ゲームについてコメントする」の匿名投稿を許可
 alter table game_comments alter column player_id drop not null;
+
+-- 追加機能: メール通知のON/OFF設定 (どのイベントで通知するか管理者が選べる)
+alter table app_settings add column if not exists notify_on_match boolean not null default true;
+alter table app_settings add column if not exists notify_on_comment boolean not null default true;
+alter table app_settings add column if not exists notify_on_player boolean not null default true;
