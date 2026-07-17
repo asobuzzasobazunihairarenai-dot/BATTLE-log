@@ -213,8 +213,16 @@
               <i class="fa-solid fa-hourglass-half text-indigo-500"></i> プレイ時間 (任意・目安でOK)
             </label>
             <div class="flex items-center gap-2">
-              <input type="number" id="match-duration" min="0" placeholder="例: 45" class="w-24 text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400">
-              <span class="text-xs text-slate-500 font-bold">分くらい</span>
+              <select id="match-duration-select" onchange="toggleMatchDurationOther()" class="text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400">
+                <option value="">選択しない</option>
+                <option value="30">30分</option>
+                <option value="45">45分</option>
+                <option value="60">60分</option>
+                <option value="75">75分</option>
+                <option value="90">90分</option>
+                <option value="other">その他（記入）</option>
+              </select>
+              <input type="number" id="match-duration-other" min="0" placeholder="分数を入力" class="hidden w-24 text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400">
             </div>
           </div>
 
@@ -785,9 +793,32 @@
           <span class="shrink-0 w-6 h-6 rounded-full bg-pink-100 text-pink-700 font-black text-xs flex items-center justify-center mt-0.5"><i class="fa-solid fa-star text-[10px]"></i></span>
           <span>上位以外にも特別な賞を用意しています。</span>
         </li>
+        <li class="flex gap-3 items-start">
+          <span class="shrink-0 w-6 h-6 rounded-full bg-teal-100 text-teal-700 font-black text-xs flex items-center justify-center mt-0.5"><i class="fa-solid fa-palette text-[10px]"></i></span>
+          <span>たくさん対戦するとアバターの枠の色が変わるよ！ <button type="button" onclick="openAvatarTierInfoModal()" class="text-indigo-600 hover:text-indigo-800 font-bold underline">詳しく見る</button></span>
+        </li>
       </ol>
       <div class="flex justify-end pt-2">
         <button onclick="closeHelpModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl transition">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- アバター丸枠ティア詳細説明モーダル -->
+  <div id="avatar-tier-info-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-palette mr-2 text-indigo-600"></i>アバター枠の色について</h3>
+        <button onclick="closeAvatarTierInfoModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <p class="text-xs text-slate-600 leading-relaxed">対戦数(累計)が増えるほど、アバターの丸い枠の色が変わっていきます。</p>
+      <div id="avatar-tier-info-list" class="space-y-1.5">
+        <!-- JSで動的構築 -->
+      </div>
+      <div class="flex justify-end pt-2">
+        <button onclick="closeAvatarTierInfoModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl transition">
           閉じる
         </button>
       </div>
@@ -970,7 +1001,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607180130";
+    const BUILD_VERSION = "202607180144";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1062,6 +1093,42 @@
       document.getElementById('ranking-info-modal').classList.add('hidden');
     }
 
+    // アバター丸枠ティアの詳細説明モーダル
+    function openAvatarTierInfoModal() {
+      const listEl = document.getElementById('avatar-tier-info-list');
+      const rows = [
+        { range: '0回', matchCount: 0 },
+        { range: '1回', matchCount: 1 },
+        { range: '2回', matchCount: 2 },
+        { range: '3回', matchCount: 3 },
+        { range: '4回', matchCount: 4 },
+        { range: '5回', matchCount: 5 },
+        { range: '6回', matchCount: 6 },
+        { range: '7回', matchCount: 7 },
+        { range: '8〜9回', matchCount: 8 },
+        { range: '10〜14回', matchCount: 10 },
+        { range: '15回以上', matchCount: 15 }
+      ];
+      listEl.innerHTML = rows.map(r => {
+        const tier = getTierInfo(r.matchCount, "");
+        const sampleAvatarImg = `<div class="w-full h-full flex items-center justify-center text-white font-black text-xs" style="background-color:#64748b;">7</div>`;
+        const ringHtml = renderAvatarRingHtml(32, tier, sampleAvatarImg);
+        return `
+          <div class="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-lg p-2">
+            ${ringHtml}
+            <div class="text-xs">
+              <div class="font-bold text-slate-700">対戦数 ${r.range}</div>
+              <div class="text-[10px] text-slate-400">${tier.label}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      document.getElementById('avatar-tier-info-modal').classList.remove('hidden');
+    }
+    function closeAvatarTierInfoModal() {
+      document.getElementById('avatar-tier-info-modal').classList.add('hidden');
+    }
+
     // --- 画像ライトボックス（プレイ証拠スクショの拡大表示） ---
     function openImageLightbox(src) {
       document.getElementById('image-lightbox-img').src = src;
@@ -1090,6 +1157,18 @@
       } else {
         body.classList.add('hidden');
         if (chevron) chevron.classList.remove('rotate-180');
+      }
+    }
+
+    // プレイ時間の「その他」選択時に手入力欄を表示する
+    function toggleMatchDurationOther() {
+      const select = document.getElementById('match-duration-select');
+      const otherInput = document.getElementById('match-duration-other');
+      if (select.value === 'other') {
+        otherInput.classList.remove('hidden');
+      } else {
+        otherInput.classList.add('hidden');
+        otherInput.value = "";
       }
     }
 
@@ -2889,8 +2968,14 @@
       }
 
       const feedbackVal = document.getElementById('match-feedback').value.trim();
-      const durationVal = document.getElementById('match-duration').value.trim();
-      const durationMinutes = durationVal !== "" ? Math.max(0, parseInt(durationVal, 10) || 0) : null;
+      const durationSelectVal = document.getElementById('match-duration-select').value;
+      let durationMinutes = null;
+      if (durationSelectVal === 'other') {
+        const otherVal = document.getElementById('match-duration-other').value.trim();
+        durationMinutes = otherVal !== "" ? Math.max(0, parseInt(otherVal, 10) || 0) : null;
+      } else if (durationSelectVal !== "") {
+        durationMinutes = parseInt(durationSelectVal, 10);
+      }
 
       const newMatch = {
         id: "m_" + Date.now(),
@@ -2923,7 +3008,9 @@
       document.getElementById('match-proof-file').value = "";
       updateMatchProofPreview();
       document.getElementById('match-feedback').value = "";
-      document.getElementById('match-duration').value = "";
+      document.getElementById('match-duration-select').value = "";
+      document.getElementById('match-duration-other').value = "";
+      document.getElementById('match-duration-other').classList.add('hidden');
 
       const stats = computePlayerStats();
       renderMemberSelection(Object.values(stats));
