@@ -374,7 +374,7 @@
                 <div class="flex items-center justify-center gap-2 mb-4">
                   <i class="fa-solid fa-crown text-amber-300 text-lg"></i>
                   <h3 class="text-sm font-black text-white uppercase tracking-widest">勝率TOP3 ランキング</h3>
-                  <button onclick="openRankingInfoModal()" class="text-white/60 hover:text-white transition" title="ランキング参加条件について">
+                  <button onclick="openRankingInfoModal('winrate')" class="text-white/60 hover:text-white transition" title="ランキング参加条件について">
                     <i class="fa-solid fa-circle-info"></i>
                   </button>
                 </div>
@@ -387,6 +387,9 @@
                 <div class="flex items-center justify-center gap-2 mb-4">
                   <i class="fa-solid fa-fire text-orange-300 text-lg"></i>
                   <h3 class="text-sm font-black text-white uppercase tracking-widest">対戦数ランキング TOP3</h3>
+                  <button onclick="openRankingInfoModal('matchcount')" class="text-white/60 hover:text-white transition" title="ランキング参加条件について">
+                    <i class="fa-solid fa-circle-info"></i>
+                  </button>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="matchcount-ranking-container">
                   <!-- JSで動的構築 -->
@@ -501,6 +504,17 @@
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+
+          <!-- 公開前の初期戦績(ベース値)設定セクション -->
+          <div class="border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i> 初期戦績(公開前データ)の設定
+            </h3>
+            <p class="text-[10px] text-slate-400 mb-2.5 leading-relaxed">このシステム公開前にすでに対戦していた分を、プレイヤーごとの対戦数・勝利数として個別に設定できます。ここで設定した値は、実際の戦績データに加算されます。</p>
+            <div id="seed-stats-container" class="space-y-1.5 max-h-80 overflow-y-auto pr-1 border border-gray-100 rounded-xl p-2">
+              <!-- JSで動的に構築 -->
             </div>
           </div>
 
@@ -726,12 +740,10 @@
   <div id="ranking-info-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
       <div class="flex justify-between items-center border-b pb-3">
-        <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>ランキング参加条件</h3>
+        <h3 id="ranking-info-title" class="font-bold text-lg text-slate-800"><i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>ランキング参加条件</h3>
         <button onclick="closeRankingInfoModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
-      <p class="text-xs text-slate-600 leading-relaxed">
-        勝率TOP3ランキングは、対戦経験が極端に少ないプレイヤーが数試合だけで上位に入ってしまわないように、<b>実際に対戦したことがあるプレイヤーの「平均対戦数」の50%を超える対戦数のプレイヤーのみ</b>が対象になります。
-      </p>
+      <p id="ranking-info-description" class="text-xs text-slate-600 leading-relaxed"></p>
       <p id="ranking-info-detail" class="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg p-2.5 font-mono"></p>
       <div class="flex justify-end pt-2">
         <button onclick="closeRankingInfoModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl transition">
@@ -906,7 +918,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171128";
+    const BUILD_VERSION = "202607171200";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -976,8 +988,22 @@
       document.getElementById('help-modal').classList.add('hidden');
     }
 
-    function openRankingInfoModal() {
-      document.getElementById('ranking-info-detail').innerText = lastRankingThresholdInfo;
+    function openRankingInfoModal(type) {
+      const titleEl = document.getElementById('ranking-info-title');
+      const descEl = document.getElementById('ranking-info-description');
+      const detailEl = document.getElementById('ranking-info-detail');
+
+      if (type === 'matchcount') {
+        titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>対戦数ランキングについて`;
+        descEl.innerHTML = `対戦数ランキングには<b>参加基準はありません</b>。承認された戦績の中で、単純に対戦数が多い順にランクインします。`;
+        detailEl.classList.add('hidden');
+      } else {
+        titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>勝率ランキングについて`;
+        descEl.innerHTML = `勝率TOP3ランキングは、対戦経験が極端に少ないプレイヤーが数試合だけで上位に入ってしまわないように、<b>実際に対戦したことがあるプレイヤーの「平均対戦数」の50%を超える対戦数のプレイヤーのみ</b>が対象になります。`;
+        detailEl.classList.remove('hidden');
+        detailEl.innerText = lastRankingThresholdInfo;
+      }
+
       document.getElementById('ranking-info-modal').classList.remove('hidden');
     }
     function closeRankingInfoModal() {
@@ -1072,7 +1098,9 @@
         avatar: row.avatar_url || "",
         customTriangleColor: row.custom_triangle_color || "",
         status: row.status,
-        editPending: row.edit_pending || null
+        editPending: row.edit_pending || null,
+        seedMatchesCount: row.seed_matches_count || 0,
+        seedWinsCount: row.seed_wins_count || 0
       };
     }
     function playerToRow(p) {
@@ -1083,7 +1111,9 @@
         avatar_url: p.avatar || "",
         custom_triangle_color: p.customTriangleColor || "",
         status: p.status,
-        edit_pending: p.editPending || null
+        edit_pending: p.editPending || null,
+        seed_matches_count: p.seedMatchesCount || 0,
+        seed_wins_count: p.seedWinsCount || 0
       };
     }
     function rowToMatch(row) {
@@ -1350,8 +1380,9 @@
           customTriangleColor: p.customTriangleColor,
           discordId: p.discordId,
           status: p.status,
-          matchesCount: 0,
-          winsCount: 0,
+          // 公開前の初期戦績(ベース値)を集計の起点にする
+          matchesCount: p.seedMatchesCount || 0,
+          winsCount: p.seedWinsCount || 0,
           winRate: 0,
           // プロフィール編集の申請データ(editPending)をここに格納してレンダリングに渡す
           editPending: p.editPending || null
@@ -1450,10 +1481,29 @@
       if (!container) return;
       container.innerHTML = "";
 
+      // 公開前の初期戦績(ベース値)がある場合、履歴の先頭に一括記録として1件表示する
+      const seedPlayers = players.filter(p => p.status === 'approved' && (p.seedMatchesCount || 0) > 0);
+      if (seedPlayers.length > 0) {
+        const seedChipsHtml = seedPlayers.map(p => {
+          const avatarHtml = getAvatarElementHtml(p, 5);
+          return `<span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5">${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${p.name} (${p.seedWinsCount || 0}勝/${p.seedMatchesCount}戦)</span></span>`;
+        }).join(' ');
+
+        const seedItem = document.createElement('div');
+        seedItem.className = "border border-indigo-100 bg-indigo-50/30 rounded-xl p-3";
+        seedItem.innerHTML = `
+          <div class="text-xs font-bold text-indigo-700 mb-1.5"><i class="fa-solid fa-box-archive mr-1"></i>公開前の過去戦績(一括記録)</div>
+          <div class="flex items-center gap-1 flex-wrap">${seedChipsHtml}</div>
+        `;
+        container.appendChild(seedItem);
+      }
+
       const approvedList = [...matches].filter(m => m.status === 'approved').sort((a, b) => b.createdAt - a.createdAt);
 
       if (approvedList.length === 0) {
-        container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-6">承認済みの対戦データがまだありません。</p>`;
+        if (seedPlayers.length === 0) {
+          container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-6">承認済みの対戦データがまだありません。</p>`;
+        }
         return;
       }
 
@@ -1667,11 +1717,6 @@
           `;
         }
 
-        // Discord IDがない場合は非表示（ブランク）
-        const discordTagHtml = player.discordId && player.discordId.trim() !== ""
-          ? `<div class="text-[9px] text-white/50 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>`
-          : '';
-
         const card = document.createElement('div');
         card.className = "relative bg-white/10 rounded-2xl p-4 flex flex-col items-center text-center border border-white/10 hover:bg-white/15 transition";
         card.innerHTML = `
@@ -1687,7 +1732,6 @@
             </div>
           </div>
           <div class="font-black text-sm text-white truncate max-w-full" title="${player.name}">${player.name}</div>
-          ${discordTagHtml}
           <div class="flex gap-2 mt-3 w-full justify-center">
             <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
               <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝率</span>
@@ -1749,10 +1793,6 @@
           `;
         }
 
-        const discordTagHtml = player.discordId && player.discordId.trim() !== ""
-          ? `<div class="text-[9px] text-white/50 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>`
-          : '';
-
         const card = document.createElement('div');
         card.className = "relative bg-white/10 rounded-2xl p-4 flex flex-col items-center text-center border border-white/10 hover:bg-white/15 transition";
         card.innerHTML = `
@@ -1768,7 +1808,6 @@
             </div>
           </div>
           <div class="font-black text-sm text-white truncate max-w-full" title="${player.name}">${player.name}</div>
-          ${discordTagHtml}
           <div class="flex gap-2 mt-3 w-full justify-center">
             <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
               <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">対戦</span>
@@ -2496,6 +2535,58 @@
           approvedBody.appendChild(tr);
         });
       }
+
+      renderSeedStatsAdmin();
+    }
+
+    // 公開前の初期戦績(ベース値)設定UIの構築 (管理者のみ)
+    function renderSeedStatsAdmin() {
+      const container = document.getElementById('seed-stats-container');
+      if (!container) return;
+      container.innerHTML = "";
+
+      const approvedPlayers = [...players].filter(p => p.status === 'approved').sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+
+      approvedPlayers.forEach(p => {
+        const row = document.createElement('div');
+        row.className = "flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg p-1.5";
+        row.innerHTML = `
+          <span class="text-xs font-bold text-slate-700 truncate flex-1 min-w-0">${p.name}</span>
+          <label class="text-[9px] text-slate-400 shrink-0">対戦</label>
+          <input type="number" min="0" id="seed-matches-${p.id}" value="${p.seedMatchesCount || 0}" class="w-14 text-xs border border-slate-200 rounded p-1 text-center">
+          <label class="text-[9px] text-slate-400 shrink-0">勝利</label>
+          <input type="number" min="0" id="seed-wins-${p.id}" value="${p.seedWinsCount || 0}" class="w-14 text-xs border border-slate-200 rounded p-1 text-center">
+          <button onclick="saveSeedStats('${p.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1 px-2.5 rounded-lg shrink-0">保存</button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    async function saveSeedStats(playerId) {
+      const matchesInput = document.getElementById(`seed-matches-${playerId}`);
+      const winsInput = document.getElementById(`seed-wins-${playerId}`);
+      const seedMatches = Math.max(0, parseInt(matchesInput.value, 10) || 0);
+      const seedWins = Math.max(0, parseInt(winsInput.value, 10) || 0);
+
+      if (seedWins > seedMatches) {
+        showAppWarningModal("初期勝利数は初期対戦数を超えられません。");
+        return;
+      }
+
+      const { error } = await supabaseClient.from('players').update({
+        seed_matches_count: seedMatches,
+        seed_wins_count: seedWins
+      }).eq('id', playerId);
+
+      if (error) {
+        logDebugEntry(error);
+        showAppWarningModal("初期戦績の保存に失敗しました。通信環境を確認してください。");
+        return;
+      }
+
+      await loadPlayersFromDB();
+      renderAll();
+      showToast("初期戦績を保存しました。");
     }
 
     // --- プレイヤー関係の承認アクション ---

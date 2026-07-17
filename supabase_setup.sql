@@ -87,3 +87,7 @@ create policy "game_comments_select" on game_comments for select using (true);
 create policy "game_comments_insert" on game_comments for insert with check (true);
 create policy "game_comments_delete" on game_comments for delete using (true);
 alter publication supabase_realtime add table game_comments;
+
+-- 追加機能: 公開前の初期戦績(ベース値)をプレイヤーごとに設定できるようにする
+alter table players add column if not exists seed_matches_count integer not null default 0;
+alter table players add column if not exists seed_wins_count integer not null default 0;
