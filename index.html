@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- html2canvas for PNG Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- Supabase (複数人でのデータ共有バックエンド) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
     /* アバター右下の三角インジケーター用クリップパス */
     .triangle-indicator {
@@ -45,6 +47,11 @@
     <button onclick="closeToast()" class="text-slate-400 hover:text-white p-1 ml-2 shrink-0"><i class="fa-solid fa-xmark"></i></button>
   </div>
 
+  <!-- 使い方ポップアップを開くフローティングボタン -->
+  <button type="button" onclick="openHelpModal()" class="fixed bottom-5 right-5 z-40 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm py-3 px-4 rounded-full shadow-2xl shadow-indigo-600/30 flex items-center gap-2 transition">
+    <i class="fa-solid fa-circle-question text-base"></i> 使い方
+  </button>
+
   <!-- ヘッダー兼ナビゲーション -->
   <header class="bg-slate-900 text-white shadow-md">
     <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -57,7 +64,7 @@
           <p class="text-xs text-slate-400">テストプレイ戦績管理システム</p>
         </div>
       </div>
-      
+
       <!-- 権限シミュレーター (パスワード認証付き) -->
       <div class="flex flex-col items-end gap-1">
         <div class="flex items-center bg-slate-800 p-1.5 rounded-full border border-slate-700">
@@ -99,17 +106,22 @@
       <!-- 左側: コントロールエリア (戦績追加・設定など) -->
       <div class="lg:col-span-4 space-y-6">
 
-        <!-- ① 戦績の追加/申請フォーム -->
-        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 space-y-4">
-          <div class="flex justify-between items-center border-b pb-3 border-gray-100">
+        <!-- ① 戦績の追加/申請フォーム (デフォルトは折りたたみ表示) -->
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5">
+          <button type="button" onclick="toggleCollapsible('match-form-body','match-form-chevron')" class="w-full flex justify-between items-center pb-3 text-left">
             <h2 class="font-bold text-lg text-slate-800 flex items-center gap-2">
               <i class="fa-solid fa-square-plus text-indigo-600"></i>
               <span id="form-title">戦績の申請</span>
             </h2>
-            <span id="form-badge" class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-              一般申請用
-            </span>
-          </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span id="form-badge" class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                一般申請用
+              </span>
+              <i id="match-form-chevron" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform"></i>
+            </div>
+          </button>
+
+          <div id="match-form-body" class="hidden space-y-4 pt-1 border-t border-gray-100">
 
           <!-- 日付選択 -->
           <div>
@@ -169,28 +181,50 @@
             </div>
           </div>
 
+          <!-- プレイ証拠のスクリーンショット添付 (必須) -->
+          <div class="border-t border-slate-100 pt-3 space-y-2">
+            <label class="block text-xs font-bold text-gray-500 flex items-center gap-1.5">
+              <i class="fa-solid fa-camera text-indigo-500"></i> プレイ証拠のスクリーンショット (必須)
+            </label>
+            <p class="text-[10px] text-slate-400 leading-normal">ユドナリウム(Connect版)で「7 SHADES OF S:EVEN」を遊んだ画面のスクショを貼ってください。</p>
+            <div id="match-proof-paste-zone" tabindex="0" class="paste-zone border-2 border-dashed border-slate-300 rounded-xl p-3 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50 hover:bg-slate-100/50 outline-none">
+              <div id="match-proof-preview-container" class="mb-1.5 w-full flex items-center justify-center"></div>
+              <p class="text-xs font-black text-slate-700">
+                <i class="fa-solid fa-paste text-indigo-600 mr-1 animate-pulse"></i>ここをクリックして画像をペースト
+              </p>
+              <p class="text-[10px] text-slate-400 leading-normal">(<kbd class="bg-white border border-slate-200 px-1 py-0.5 rounded text-[9px] font-mono">Ctrl+V</kbd> で貼付け、または下からファイル選択)</p>
+            </div>
+            <input type="file" id="match-proof-file" onchange="updateMatchProofFromFile()" accept="image/*" class="w-full text-[10px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+          </div>
+
           <!-- 申請/登録ボタン -->
           <button type="button" onclick="submitMatch()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-600/20 transition-all text-sm">
             <span id="submit-btn-text">戦績を申請する (承認待ちへ)</span>
           </button>
+
+          </div>
         </section>
 
-        <!-- ② クイックプレイヤー追加ツール (管理者承認制) -->
+        <!-- ② クイックプレイヤー追加ツール (管理者承認制、デフォルトは折りたたみ表示) -->
         <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 relative overflow-hidden">
-          <div class="space-y-4">
-            <div class="flex justify-between items-center border-b pb-2.5 border-gray-100">
-              <h2 class="font-bold text-md text-slate-800 flex items-center gap-2">
-                <i class="fa-solid fa-user-plus text-indigo-600"></i>
-                <span id="player-add-title">プレイヤー登録の申請</span>
-              </h2>
+          <button type="button" onclick="toggleCollapsible('player-add-form-body','player-add-form-chevron')" class="w-full flex justify-between items-center pb-2.5 text-left">
+            <h2 class="font-bold text-md text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-user-plus text-indigo-600"></i>
+              <span id="player-add-title">プレイヤー登録の申請</span>
+            </h2>
+            <div class="flex items-center gap-2 shrink-0">
               <span id="player-add-badge" class="bg-indigo-100 text-indigo-800 text-[9px] font-bold px-1.5 py-0.5 rounded-full">一般申請用</span>
+              <i id="player-add-form-chevron" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform"></i>
             </div>
-            
+          </button>
+
+          <div id="player-add-form-body" class="hidden space-y-4 pt-1 border-t border-gray-100">
+
             <div>
               <label class="block text-xs font-bold text-gray-500 mb-1">ユーザー名 / 表示名 (必須)</label>
               <input type="text" id="new-player-name" oninput="updateAvatarPreview()" placeholder="例: クスノキ" class="w-full text-sm bg-gray-50 border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition">
             </div>
-            
+
             <div>
               <label class="block text-xs font-bold text-gray-500 mb-1">DiscordユーザーID / @名 (任意)</label>
               <input type="text" id="new-player-discord-id" oninput="updateAvatarPreview()" placeholder="例: kusunoki_7 (なければ空欄)" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-400">
@@ -203,15 +237,15 @@
                 <!-- プレビュー種別のテキストバッジ -->
                 <span id="preview-avatar-type" class="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded">仮アバター</span>
               </div>
-              
+
               <!-- クリップボード貼り付け / プレビュー統合ボックス -->
               <div id="paste-zone-box" tabindex="0" class="paste-zone border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50 hover:bg-slate-100/50 outline-none">
-                
+
                 <!-- プレビュー表示用コンテナ -->
                 <div id="preview-avatar-container" class="mb-2">
                   <!-- JSでアバター画像を動的構築 -->
                 </div>
-                
+
                 <!-- テキスト説明 -->
                 <div id="paste-zone-text" class="space-y-1">
                   <p class="text-xs font-black text-slate-700">
@@ -243,7 +277,7 @@
 
         <!-- ビジュアルダッシュボード -->
         <div class="bg-white rounded-3xl border border-gray-200/90 shadow-md overflow-hidden relative" id="dashboard-wrapper">
-          
+
           <!-- 画像キャプチャ用の操作バー (画像出力時には隠れます) -->
           <div class="bg-slate-50 border-b border-gray-100 p-4 flex flex-col sm:flex-row justify-between items-center gap-3" id="capture-toolbar">
             <div class="flex items-center gap-2">
@@ -264,7 +298,7 @@
 
           <!-- キャプチャ対象本体 -->
           <div id="dashboard-capture" class="p-6 bg-[#f7f8fa] space-y-6">
-            
+
             <div class="flex justify-between items-end border-b-2 border-slate-200/60 pb-3">
               <div>
                 <h2 class="text-xl font-black text-slate-800 tracking-wider flex items-center gap-2">
@@ -278,50 +312,41 @@
               </div>
             </div>
 
-            <!-- 特設2Dグリッドレイアウト (スクリーンショットのデザインを忠実に再現) -->
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-              
-              <!-- 総合ランキング (左側 4カラム) -->
-              <div class="md:col-span-4 space-y-4">
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                  <div class="flex items-center gap-2 mb-3.5 pb-2 border-b border-gray-100">
-                    <i class="fa-solid fa-crown text-amber-500 text-sm"></i>
-                    <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider">総合TOP3 ランキング</h3>
-                  </div>
-                  
-                  <div class="space-y-3" id="top3-ranking-container">
-                    <!-- JSで動的構築 -->
-                  </div>
+            <!-- メインの目玉：総合TOP3 ランキング (フル幅・強調デザイン) -->
+            <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
+              <div class="flex items-center gap-2 mb-4">
+                <i class="fa-solid fa-crown text-amber-300 text-lg"></i>
+                <h3 class="text-sm font-black text-white uppercase tracking-widest">総合TOP3 ランキング</h3>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="top3-ranking-container">
+                <!-- JSで動的構築 -->
+              </div>
+            </div>
+
+            <!-- 登録プレイヤー戦績一覧 (フル幅) -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <i class="fa-solid fa-users text-indigo-500"></i> 登録プレイヤー戦績一覧
+                </h3>
+                <div class="flex items-center gap-2 flex-wrap shrink-0">
+                  <span class="text-[10px] font-bold text-slate-400">並び順:</span>
+                  <!-- 並び替え（ソート機能） -->
+                  <select id="players-sort-select" onchange="changePlayersSort()" class="text-[10px] font-bold bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-600 outline-none focus:border-indigo-400">
+                    <option value="name">五十音順</option>
+                    <option value="matchesCount">対戦数順</option>
+                    <option value="winsCount">勝利数順</option>
+                    <option value="winRate">勝率順</option>
+                  </select>
+                  <div class="text-[10px] text-slate-400 font-bold" id="total-players-badge">登録者: 30人</div>
                 </div>
               </div>
 
-              <!-- プレイヤー個別カード一覧 (右側 8カラム) -->
-              <div class="md:col-span-8">
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 pb-2 border-b border-gray-100">
-                    <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                      <i class="fa-solid fa-users text-indigo-500"></i> 登録プレイヤー戦績一覧
-                    </h3>
-                    <div class="flex items-center gap-2 flex-wrap shrink-0">
-                      <span class="text-[10px] font-bold text-slate-400">並び順:</span>
-                      <!-- 並び替え（ソート機能） -->
-                      <select id="players-sort-select" onchange="changePlayersSort()" class="text-[10px] font-bold bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-600 outline-none focus:border-indigo-400">
-                        <option value="name">五十音順</option>
-                        <option value="matchesCount">対戦数順</option>
-                        <option value="winsCount">勝利数順</option>
-                        <option value="winRate">勝率順</option>
-                      </select>
-                      <div class="text-[10px] text-slate-400 font-bold" id="total-players-badge">登録者: 30人</div>
-                    </div>
-                  </div>
-
-                  <!-- プレイヤーグリッド一覧 -->
-                  <div id="players-grid-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-1">
-                    <!-- JSで動的構築 -->
-                  </div>
-                </div>
+              <!-- プレイヤーグリッド一覧 -->
+              <div id="players-grid-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[500px] overflow-y-auto pr-1">
+                <!-- JSで動的構築 -->
               </div>
-
             </div>
 
             <!-- ボードフッター -->
@@ -343,7 +368,7 @@
               </h2>
               <p class="text-xs text-gray-500">戦績の承認作業、データのエクスポート、パスワード変更が可能です。</p>
             </div>
-            
+
             <!-- スプシ出力ボタン -->
             <button type="button" onclick="exportToCSV()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3.5 rounded-xl shadow transition flex items-center gap-1.5">
               <i class="fa-solid fa-file-excel text-emerald-400"></i> スプシ用CSVエクスポート
@@ -395,6 +420,7 @@
                   <thead class="bg-slate-100 text-slate-600 uppercase font-bold sticky top-0">
                     <tr>
                       <th class="px-4 py-2.5">日付</th>
+                      <th class="px-4 py-2.5">証拠</th>
                       <th class="px-4 py-2.5">参加メンバー</th>
                       <th class="px-4 py-2.5">勝者</th>
                       <th class="px-4 py-2.5 text-right">操作</th>
@@ -457,11 +483,11 @@
         <button onclick="closeHistoryCopyModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
       <p class="text-xs text-gray-500">メンバーをコピペしたい対戦履歴を選んで「このメンバーをセット」ボタンを押してください。</p>
-      
+
       <div id="modal-history-list" class="max-h-80 overflow-y-auto space-y-2 pr-1">
         <!-- 動的表示 -->
       </div>
-      
+
       <div class="flex justify-end pt-2">
         <button onclick="closeHistoryCopyModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2 px-4 rounded-xl transition">
           閉じる
@@ -505,15 +531,15 @@
         <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-user-pen mr-2 text-indigo-600"></i>プレイヤープロフィールの編集</h3>
         <button onclick="closePlayerEditModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
-      
+
       <!-- 編集対象ID用隠しフィールド -->
       <input type="hidden" id="edit-player-id">
-      
+
       <div>
         <label class="block text-xs font-bold text-gray-500 mb-1">ユーザー名 / 表示名 (必須)</label>
         <input type="text" id="edit-player-name" class="w-full text-sm bg-gray-50 border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition">
       </div>
-      
+
       <div>
         <label class="block text-xs font-bold text-gray-500 mb-1">DiscordユーザーID / @名 (任意、なければ空欄)</label>
         <input type="text" id="edit-player-discord-id" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-400">
@@ -522,7 +548,7 @@
       <!-- アバター変更ペーストゾーン -->
       <div class="border-t border-dashed border-gray-100 pt-3 space-y-3">
         <label class="block text-xs font-bold text-gray-500">新アバター画像の設定</label>
-        
+
         <div id="edit-paste-zone" tabindex="0" class="paste-zone border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50 hover:bg-slate-100/50 outline-none">
           <div id="edit-preview-avatar-container" class="mb-2"></div>
           <p class="text-xs font-black text-slate-700">
@@ -530,7 +556,7 @@
           </p>
           <p class="text-[9px] text-slate-400 leading-normal">(スクリーンショットやコピーした画像をCtrl+Vで上書き)</p>
         </div>
-        
+
         <div class="text-xs">
           <label class="block text-[10px] font-bold text-gray-400 mb-1">または手動でファイルからアップロード</label>
           <input type="file" id="edit-player-avatar-file" onchange="updateEditAvatarFromFile()" accept="image/*" class="w-full text-[10px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
@@ -593,6 +619,44 @@
     </div>
   </div>
 
+  <!-- 使い方ポップアップモーダル -->
+  <div id="help-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-circle-question mr-2 text-indigo-600"></i>使い方</h3>
+        <button onclick="closeHelpModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <ol class="space-y-3 text-sm text-slate-700 leading-relaxed">
+        <li class="flex gap-3 items-start">
+          <span class="shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center mt-0.5"><i class="fa-solid fa-user-plus text-[10px]"></i></span>
+          <span>参加メンバーを登録しよう！</span>
+        </li>
+        <li class="flex gap-3 items-start">
+          <span class="shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center mt-0.5"><i class="fa-solid fa-dice text-[10px]"></i></span>
+          <span>シェイズオブセブンを遊んだら戦績を登録しよう！</span>
+        </li>
+        <li class="flex gap-3 items-start">
+          <span class="shrink-0 w-6 h-6 rounded-full bg-amber-100 text-amber-700 font-black text-xs flex items-center justify-center mt-0.5"><i class="fa-solid fa-gift text-[10px]"></i></span>
+          <span>一定期間経過時に上位にいると素敵なプレゼントや称号などがもらえるかも！</span>
+        </li>
+        <li class="flex gap-3 items-start">
+          <span class="shrink-0 w-6 h-6 rounded-full bg-pink-100 text-pink-700 font-black text-xs flex items-center justify-center mt-0.5"><i class="fa-solid fa-star text-[10px]"></i></span>
+          <span>上位以外にも特別な賞を用意しています。</span>
+        </li>
+      </ol>
+      <div class="flex justify-end pt-2">
+        <button onclick="closeHelpModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl transition">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 画像拡大表示用ライトボックス (プレイ証拠スクショの確認用) -->
+  <div id="image-lightbox-modal" class="hidden fixed inset-0 bg-black/80 z-[110] flex items-center justify-center p-4" onclick="closeImageLightbox()">
+    <img id="image-lightbox-img" src="" class="max-w-full max-h-full rounded-lg shadow-2xl">
+  </div>
+
   <footer class="bg-slate-900 text-slate-500 text-xs py-10 mt-12 border-t border-slate-800">
     <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
       <p>7 SHADES OF S:EVEN Test-play Stat Management System © 2026</p>
@@ -603,7 +667,13 @@
   <!-- JavaScript ロジック -->
   <script>
     // --- 定数・初期設定 ---
-    const STORAGE_PREFIX = "7shades_match_tracker_";
+    // Supabase接続設定 (複数人でメンバー・戦績・証拠スクショを共有するためのバックエンド)
+    const SUPABASE_URL = "https://prnddzrnblfysggiuzmo.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_YFYWr0FghhXbrqNQJ9Jzgw_hu31kvw9";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const AVATAR_BUCKET = "avatars";
+    const PROOF_BUCKET = "match-proofs";
+
     let currentRole = "tester"; // 'tester' | 'admin'
     let memberSortKey = "playCount"; // 'playCount' | 'alphabetical'
     let playersSortKey = "name"; // 'name' | 'matchesCount' | 'winsCount' | 'winRate' (並び替えキー)
@@ -613,12 +683,14 @@
     let tempAvatarBase64 = "";
     // プレイヤー編集用の一時Base64
     let tempEditAvatarBase64 = "";
+    // 戦績申請時の「プレイ証拠スクショ」用の一時Base64
+    let tempMatchProofBase64 = "";
 
     // カスタム確認ダイアログのコールバック定義用
     let confirmCallback = null;
 
-    // 管理者認証用パスワード (初期値は0000、LocalStorageに保存可能)
-    let adminPassword = localStorage.getItem(STORAGE_PREFIX + "admin_password") || "0000";
+    // 管理者認証用パスワード (Supabaseのapp_settingsテーブルで全員に共有される。初期値は0000)
+    let adminPassword = "0000";
 
     // カラーパレット (仮アバター生成用)
     const avatarBgColors = [
@@ -665,7 +737,7 @@
       { id: "m1", date: "2026-07-15", members: ["p1"], winnerId: "p1", status: "approved", createdAt: 1715760000000 },
       { id: "m2", date: "2026-07-15", members: ["p2", "p3"], winnerId: "p2", status: "approved", createdAt: 1715760100000 },
       { id: "m3", date: "2026-07-15", members: ["p3", "p2", "p18"], winnerId: "p3", status: "approved", createdAt: 1715760200000 },
-      { id: "m4", date: "2026-07-15", members: ["p8", "p9", "p10"], winnerId: "p9", status: "pending", inCreated: 1715760300000 }
+      { id: "m4", date: "2026-07-15", members: ["p8", "p9", "p10"], winnerId: "p9", status: "pending", createdAt: 1715760300000 }
     ];
 
     // アプリ状態
@@ -705,11 +777,11 @@
       const modalTitle = document.getElementById('confirm-modal-title');
       const modalText = document.getElementById('confirm-modal-text');
       const confirmModal = document.getElementById('app-confirm-modal');
-      
+
       if (modalTitle && modalText && confirmModal) {
         modalTitle.innerText = title;
         modalText.innerText = text;
-        
+
         const iconBg = document.getElementById('confirm-modal-icon-bg');
         const icon = document.getElementById('confirm-modal-icon');
         const yesBtn = document.getElementById('confirm-modal-yes-btn');
@@ -737,33 +809,208 @@
       confirmCallback = null;
     }
 
-    // --- データのロード・保存 ---
-    function savePlayers() {
-      localStorage.setItem(STORAGE_PREFIX + "players", JSON.stringify(players));
+    // --- 使い方ポップアップの表示制御 ---
+    function openHelpModal() {
+      document.getElementById('help-modal').classList.remove('hidden');
+    }
+    function closeHelpModal() {
+      document.getElementById('help-modal').classList.add('hidden');
     }
 
-    // ドキュメント全体でのPaste監視
-    function saveMatches() {
-      localStorage.setItem(STORAGE_PREFIX + "matches", JSON.stringify(matches));
+    // --- 画像ライトボックス（プレイ証拠スクショの拡大表示） ---
+    function openImageLightbox(src) {
+      document.getElementById('image-lightbox-img').src = src;
+      document.getElementById('image-lightbox-modal').classList.remove('hidden');
+    }
+    function closeImageLightbox() {
+      document.getElementById('image-lightbox-modal').classList.add('hidden');
+      document.getElementById('image-lightbox-img').src = "";
+    }
+    function openImageLightboxForMatch(matchId) {
+      const match = matches.find(m => m.id === matchId);
+      if (match && match.proofImage) {
+        openImageLightbox(match.proofImage);
+      }
     }
 
-    function loadData() {
-      const loadedPlayers = localStorage.getItem(STORAGE_PREFIX + "players");
-      const loadedMatches = localStorage.getItem(STORAGE_PREFIX + "matches");
-
-      if (loadedPlayers) {
-        players = JSON.parse(loadedPlayers);
+    // --- 折りたたみセクションの開閉トグル（戦績申請フォーム／プレイヤー登録フォーム） ---
+    function toggleCollapsible(bodyId, chevronId) {
+      const body = document.getElementById(bodyId);
+      const chevron = document.getElementById(chevronId);
+      if (!body) return;
+      const isHidden = body.classList.contains('hidden');
+      if (isHidden) {
+        body.classList.remove('hidden');
+        if (chevron) chevron.classList.add('rotate-180');
       } else {
-        players = [...defaultPlayers];
-        savePlayers();
+        body.classList.add('hidden');
+        if (chevron) chevron.classList.remove('rotate-180');
       }
+    }
 
-      if (loadedMatches) {
-        matches = JSON.parse(loadedMatches);
-      } else {
-        matches = [...defaultMatches];
-        saveMatches();
+    // --- 画像圧縮ヘルパー (Supabase Storageへのアップロード量を抑えるため、貼り付け/アップロードされた画像を縮小してからBase64化する) ---
+    function compressImageBlob(blob, maxWidth = 1000, quality = 0.7) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+              height = Math.round(height * (maxWidth / width));
+              width = maxWidth;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = reject;
+          img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    // --- クリップボード貼り付けゾーンの共通セットアップ (Ctrl+V で画像を受け取る) ---
+    function setupPasteZone(elementId, onImageReady) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      el.addEventListener('paste', function(e) {
+        const items = (e.clipboardData || window.clipboardData) ? (e.clipboardData || window.clipboardData).items : null;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            const blob = items[i].getAsFile();
+            compressImageBlob(blob).then(onImageReady);
+            e.preventDefault();
+            break;
+          }
+        }
+      });
+    }
+
+    // --- データのロード・保存 (Supabase版) ---
+
+    // DBの行 <-> アプリ内オブジェクト の変換ヘルパー
+    function rowToPlayer(row) {
+      return {
+        id: row.id,
+        name: row.name,
+        discordId: row.discord_id || "",
+        avatar: row.avatar_url || "",
+        customTriangleColor: row.custom_triangle_color || "",
+        status: row.status,
+        editPending: row.edit_pending || null
+      };
+    }
+    function playerToRow(p) {
+      return {
+        id: p.id,
+        name: p.name,
+        discord_id: p.discordId || "",
+        avatar_url: p.avatar || "",
+        custom_triangle_color: p.customTriangleColor || "",
+        status: p.status,
+        edit_pending: p.editPending || null
+      };
+    }
+    function rowToMatch(row) {
+      return {
+        id: row.id,
+        date: row.date,
+        members: row.members,
+        winnerId: row.winner_id,
+        proofImage: row.proof_image_url || "",
+        status: row.status,
+        createdAt: Number(row.created_at)
+      };
+    }
+    function matchToRow(m) {
+      return {
+        id: m.id,
+        date: m.date,
+        members: m.members,
+        winner_id: m.winnerId,
+        proof_image_url: m.proofImage || "",
+        status: m.status,
+        created_at: m.createdAt
+      };
+    }
+
+    // 貼り付け/アップロードされた画像(dataURL)をSupabase Storageにアップロードして公開URLを返す
+    async function uploadImageToStorage(dataUrl, bucket) {
+      if (!dataUrl) return "";
+      try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        const { error } = await supabaseClient.storage.from(bucket).upload(fileName, blob, {
+          contentType: 'image/jpeg',
+          upsert: false
+        });
+        if (error) {
+          console.error(error);
+          showAppWarningModal("画像のアップロードに失敗しました。通信環境を確認してもう一度お試しください。");
+          return "";
+        }
+        const { data } = supabaseClient.storage.from(bucket).getPublicUrl(fileName);
+        return data.publicUrl;
+      } catch (e) {
+        console.error(e);
+        showAppWarningModal("画像のアップロードに失敗しました。通信環境を確認してもう一度お試しください。");
+        return "";
       }
+    }
+
+    async function loadPlayersFromDB() {
+      const { data, error } = await supabaseClient.from('players').select('*').order('created_at', { ascending: true });
+      if (error) {
+        console.error(error);
+        showAppWarningModal("プレイヤーデータの取得に失敗しました。通信環境を確認してください。");
+        return;
+      }
+      players = data.map(rowToPlayer);
+    }
+
+    async function loadMatchesFromDB() {
+      const { data, error } = await supabaseClient.from('matches').select('*').order('created_at', { ascending: true });
+      if (error) {
+        console.error(error);
+        showAppWarningModal("戦績データの取得に失敗しました。通信環境を確認してください。");
+        return;
+      }
+      matches = data.map(rowToMatch);
+    }
+
+    async function loadAdminPasswordFromDB() {
+      const { data, error } = await supabaseClient.from('app_settings').select('admin_password').eq('id', 1).maybeSingle();
+      if (error || !data) {
+        console.error(error);
+        return;
+      }
+      adminPassword = data.admin_password;
+    }
+
+    // 初回アクセス時のみ: DBが空だった場合にテスト用の初期データを流し込む
+    async function seedInitialDataIfEmpty() {
+      const { count: playerCount } = await supabaseClient.from('players').select('*', { count: 'exact', head: true });
+      if (!playerCount) {
+        await supabaseClient.from('players').insert(defaultPlayers.map(playerToRow));
+      }
+      const { count: matchCount } = await supabaseClient.from('matches').select('*', { count: 'exact', head: true });
+      if (!matchCount) {
+        await supabaseClient.from('matches').insert(defaultMatches.map(matchToRow));
+      }
+    }
+
+    async function loadData() {
+      await seedInitialDataIfEmpty();
+      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB()]);
     }
 
     function executeAppConfirm() {
@@ -779,7 +1026,7 @@
         switchRole('tester');
         return;
       }
-      
+
       document.getElementById('admin-password-input').value = "";
       document.getElementById('password-error').classList.add('hidden');
       document.getElementById('password-modal').classList.remove('hidden');
@@ -804,6 +1051,44 @@
       }
     }
 
+    // 管理者パスワードの変更（ボタンのonclickが呼ぶ実体が無かったため追加）
+    async function changeAdminPassword() {
+      const currentInput = document.getElementById('change-pwd-current');
+      const newInput = document.getElementById('change-pwd-new');
+      const confirmInput = document.getElementById('change-pwd-confirm');
+
+      const currentVal = currentInput.value;
+      const newVal = newInput.value;
+      const confirmVal = confirmInput.value;
+
+      if (currentVal !== adminPassword) {
+        showAppWarningModal("現在のパスワードが間違っています。");
+        return;
+      }
+      if (!newVal) {
+        showAppWarningModal("新しいパスワードを入力してください。");
+        return;
+      }
+      if (newVal !== confirmVal) {
+        showAppWarningModal("新しいパスワード（確認）が一致しません。");
+        return;
+      }
+
+      const { error } = await supabaseClient.from('app_settings').update({ admin_password: newVal }).eq('id', 1);
+      if (error) {
+        console.error(error);
+        showAppWarningModal("パスワードの変更に失敗しました。通信環境を確認してください。");
+        return;
+      }
+      adminPassword = newVal;
+
+      currentInput.value = "";
+      newInput.value = "";
+      confirmInput.value = "";
+
+      showToast("管理者パスワードを変更しました。(全員のブラウザに反映されます)");
+    }
+
     function switchRole(role) {
       currentRole = role;
       const testerBtn = document.getElementById('role-tester-btn');
@@ -812,7 +1097,7 @@
       const formBadge = document.getElementById('form-badge');
       const submitBtnText = document.getElementById('submit-btn-text');
       const adminSection = document.getElementById('admin-section');
-      
+
       const playerAddTitle = document.getElementById('player-add-title');
       const playerAddBadge = document.getElementById('player-add-badge');
       const playerSubmitBtnText = document.getElementById('player-submit-btn-text');
@@ -825,10 +1110,10 @@
         formBadge.innerText = "管理者権限";
         formBadge.className = "bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
         submitBtnText.innerText = "戦績を即時登録 (承認済み)";
-        
+
         // 管理者コンソール自体をテスターモードではハイドし、管理者時のみ完全露出
         adminSection.classList.remove('hidden');
-        
+
         // プレイヤー追加フォームの文言切替（管理者）
         playerAddTitle.innerText = "プレイヤーの直接登録";
         playerAddBadge.innerText = "管理者権限";
@@ -842,10 +1127,10 @@
         formBadge.innerText = "一般申請用";
         formBadge.className = "bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full";
         submitBtnText.innerText = "戦績を申請する (承認待ちへ)";
-        
+
         // 一般テスター時：管理者コンソールを完封ハイド (初期化リセット含む)
         adminSection.classList.add('hidden');
-        
+
         // プレイヤー追加フォームの文言切替（テスター）
         playerAddTitle.innerText = "プレイヤー登録の申請";
         playerAddBadge.innerText = "一般申請用";
@@ -860,7 +1145,7 @@
     // --- 各種計算（集計）ロジック ---
     function computePlayerStats() {
       const stats = {};
-      
+
       // 承認待ちプレイヤーでも戦績には起用できるが、公式集計に含めるのは approved プレイヤーのみ
       players.forEach(p => {
         stats[p.id] = {
@@ -932,10 +1217,10 @@
 
       renderTop3Ranking(approvedStatsList);
       renderPlayersGrid(approvedStatsList);
-      
+
       // メンバー選択画面（一般用）には、承認待ちプレイヤーも含めて表示
       renderMemberSelection(statsList);
-      
+
       renderAdminConsole();
 
       const pendingMatchesCount = matches.filter(m => m.status === 'pending').length;
@@ -963,17 +1248,17 @@
       if (activePlayer.avatar && activePlayer.avatar.trim() !== "") {
         return activePlayer.avatar;
       }
-      
+
       // 画像指定がない、かつIDがある場合はDicebearのロボット
       if (activePlayer.discordId && activePlayer.discordId.trim() !== "") {
         const cleanId = activePlayer.discordId.trim().toLowerCase();
         return `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanId)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
       }
-      
+
       return null;
     }
 
-    // ランキングの構築（バッジをアバターに重ねて横スペースを配置制限）
+    // ランキングの構築（メインの目玉としてダーク背景に大きく強調表示）
     function renderTop3Ranking(approvedStatsList) {
       const container = document.getElementById('top3-ranking-container');
       container.innerHTML = "";
@@ -987,20 +1272,20 @@
       const top3 = sorted.filter(p => p.matchesCount > 0).slice(0, 3);
 
       if (top3.length === 0) {
-        container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-6">承認済みの対戦データがまだありません。</p>`;
+        container.innerHTML = `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">承認済みの対戦データがまだありません。</p>`;
         return;
       }
 
       top3.forEach((player, idx) => {
         const badgeColors = [
-          "bg-amber-500 text-white border-yellow-300 shadow-md shadow-amber-500/30", 
-          "bg-slate-400 text-white border-slate-200 shadow-md shadow-slate-400/30",  
-          "bg-amber-700 text-white border-amber-500 shadow-md shadow-amber-700/30"  
+          "bg-amber-400 text-amber-950 border-yellow-200 shadow-md shadow-amber-500/40",
+          "bg-slate-300 text-slate-800 border-slate-100 shadow-md shadow-slate-400/30",
+          "bg-amber-600 text-white border-amber-400 shadow-md shadow-amber-700/30"
         ];
         const badgeTexts = ["🥇", "🥈", "🥉"];
 
-        const sizePx = 40; 
-        const trigSize = 14;
+        const sizePx = 64;
+        const trigSize = 20;
         const color = getContributionColor(player.matchesCount, player.customTriangleColor);
         const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
 
@@ -1013,56 +1298,45 @@
           const bgIdx = Math.abs(player.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % avatarBgColors.length;
           const bgColor = avatarBgColors[bgIdx];
           avatarImgHtml = `
-            <div class="w-full h-full flex items-center justify-center text-white font-black" style="background-color: ${bgColor}; font-size: 18px">
+            <div class="w-full h-full flex items-center justify-center text-white font-black" style="background-color: ${bgColor}; font-size: 28px">
               ${char}
             </div>
           `;
         }
 
-        const avatarWithBadgeHtml = `
-          <div class="relative shrink-0" title="${tooltip}">
-            <div class="rounded-full border border-slate-200 overflow-hidden shadow-inner bg-slate-50" style="width: ${sizePx}px; height: ${sizePx}px;">
-              ${avatarImgHtml}
-              <div class="absolute bottom-0 right-0 triangle-indicator" 
-                   style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
-              </div>
-            </div>
-            <div class="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full border flex items-center justify-center text-[10px] font-black ${badgeColors[idx]} z-10">
-              ${badgeTexts[idx]}
-            </div>
-          </div>
-        `;
-        
         // Discord IDがない場合は非表示（ブランク）
-        const discordTagHtml = player.discordId && player.discordId.trim() !== "" 
-          ? `<div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>` 
+        const discordTagHtml = player.discordId && player.discordId.trim() !== ""
+          ? `<div class="text-[9px] text-white/50 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>`
           : '';
 
-        const row = document.createElement('div');
-        row.className = "p-2 rounded-xl bg-slate-50 border border-slate-100 hover:shadow-sm transition grid grid-cols-12 gap-1 items-center";
-        row.innerHTML = `
-          <!-- 左側：バッジ付きアバター ＋ 名前 (8カラム) -->
-          <div class="col-span-8 flex items-center gap-2.5 min-w-0">
-            ${avatarWithBadgeHtml}
-            <div class="min-w-0 flex-1 flex flex-col justify-center py-0.5">
-              <div class="font-black text-xs text-slate-800 truncate leading-normal" title="${player.name}">${player.name}</div>
-              ${discordTagHtml}
+        const card = document.createElement('div');
+        card.className = "relative bg-white/10 rounded-2xl p-4 flex flex-col items-center text-center border border-white/10 hover:bg-white/15 transition";
+        card.innerHTML = `
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full border-2 border-white/50 flex items-center justify-center text-sm font-black ${badgeColors[idx]} z-10">
+            ${badgeTexts[idx]}
+          </div>
+          <div class="relative mt-2 mb-2" title="${tooltip}">
+            <div class="rounded-full border-2 border-white/30 overflow-hidden shadow-lg bg-slate-800" style="width: ${sizePx}px; height: ${sizePx}px;">
+              ${avatarImgHtml}
+            </div>
+            <div class="absolute bottom-0 right-0 triangle-indicator"
+                 style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
             </div>
           </div>
-          
-          <!-- 右側：スタッツ (4カラム、完全に右寄せ固定) -->
-          <div class="col-span-4 flex items-center justify-end gap-1 font-mono text-center shrink-0">
-            <div class="w-9 bg-white rounded-lg py-1 border border-slate-100/80 shadow-sm">
-              <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">勝率</span>
-              <span class="font-mono font-black text-indigo-600 text-[10px] sm:text-xs">${player.winRate}%</span>
+          <div class="font-black text-sm text-white truncate max-w-full" title="${player.name}">${player.name}</div>
+          ${discordTagHtml}
+          <div class="flex gap-2 mt-3 w-full justify-center">
+            <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+              <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝率</span>
+              <span class="font-mono font-black text-amber-300 text-sm">${player.winRate}%</span>
             </div>
-            <div class="w-7 bg-white rounded-lg py-1 border border-slate-100/80 shadow-sm">
-              <span class="text-[7px] text-slate-400 block font-bold leading-none mb-0.5">勝利</span>
-              <span class="font-mono font-bold text-slate-700 text-[10px] sm:text-xs">${player.winsCount}</span>
+            <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+              <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝利</span>
+              <span class="font-mono font-bold text-white text-sm">${player.winsCount}</span>
             </div>
           </div>
         `;
-        container.appendChild(row);
+        container.appendChild(card);
       });
     }
 
@@ -1094,10 +1368,10 @@
 
       sorted.forEach(player => {
         const avatarHtml = getAvatarElementHtml(player, 10);
-        
+
         // Discord IDがない場合は非表示（ブランク）
-        const discordTagHtml = player.discordId && player.discordId.trim() !== "" 
-          ? `<div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>` 
+        const discordTagHtml = player.discordId && player.discordId.trim() !== ""
+          ? `<div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>`
           : '';
 
         // プロフィール編集の「承認待ち」バッジを表示
@@ -1131,7 +1405,7 @@
               ${discordTagHtml}
             </div>
           </div>
-          
+
           <!-- 右側領域 (5カラム分占有) -->
           <div class="col-span-5 flex items-center justify-end gap-1 font-mono text-center shrink-0">
             <div class="w-8 sm:w-10 bg-slate-50 border border-slate-100 rounded-lg py-1">
@@ -1178,7 +1452,7 @@
         <div class="relative rounded-full border border-slate-200 overflow-hidden shrink-0 shadow-inner bg-slate-50" style="width: ${sizePx}px; height: ${sizePx}px;" title="${tooltip}">
           ${avatarImgHtml}
           <!-- 三角マーク（右下斜めカット） -->
-          <div class="absolute bottom-0 right-0 triangle-indicator" 
+          <div class="absolute bottom-0 right-0 triangle-indicator"
                style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
           </div>
         </div>
@@ -1219,16 +1493,14 @@
       }
     }
 
-    // ファイルアップロード時のプレビュー処理
+    // ファイルアップロード時のプレビュー処理（画像は圧縮してから保持する）
     function updateAvatarPreviewFromFile() {
       const fileInput = document.getElementById('new-player-avatar-file');
       if (fileInput.files && fileInput.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          tempAvatarBase64 = e.target.result;
+        compressImageBlob(fileInput.files[0]).then(dataUrl => {
+          tempAvatarBase64 = dataUrl;
           updateAvatarPreview();
-        };
-        reader.readAsDataURL(fileInput.files[0]);
+        });
       } else {
         tempAvatarBase64 = "";
         updateAvatarPreview();
@@ -1244,7 +1516,7 @@
       document.getElementById('edit-player-name').value = player.name;
       document.getElementById('edit-player-discord-id').value = player.discordId || "";
       document.getElementById('edit-player-avatar-file').value = "";
-      
+
       // すでに承認待ちの編集データがある場合は、それをプレビューに載せる
       tempEditAvatarBase64 = (player.editPending && player.editPending.avatar) ? player.editPending.avatar : (player.avatar || "");
       if(player.editPending) {
@@ -1294,17 +1566,39 @@
     function updateEditAvatarFromFile() {
       const fileInput = document.getElementById('edit-player-avatar-file');
       if (fileInput.files && fileInput.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          tempEditAvatarBase64 = e.target.result;
+        compressImageBlob(fileInput.files[0]).then(dataUrl => {
+          tempEditAvatarBase64 = dataUrl;
           updateEditAvatarPreview();
-        };
-        reader.readAsDataURL(fileInput.files[0]);
+        });
+      }
+    }
+
+    // プレイ証拠スクショ：ファイルアップロード時のプレビュー処理
+    function updateMatchProofFromFile() {
+      const fileInput = document.getElementById('match-proof-file');
+      if (fileInput.files && fileInput.files[0]) {
+        compressImageBlob(fileInput.files[0]).then(dataUrl => {
+          tempMatchProofBase64 = dataUrl;
+          updateMatchProofPreview();
+        });
+      } else {
+        tempMatchProofBase64 = "";
+        updateMatchProofPreview();
+      }
+    }
+
+    function updateMatchProofPreview() {
+      const container = document.getElementById('match-proof-preview-container');
+      if (!container) return;
+      if (tempMatchProofBase64) {
+        container.innerHTML = `<img src="${tempMatchProofBase64}" class="max-h-28 rounded-lg border border-slate-200 shadow-sm object-contain">`;
+      } else {
+        container.innerHTML = "";
       }
     }
 
     // 編集内容の保存/申請
-    function savePlayerEdit() {
+    async function savePlayerEdit() {
       const id = document.getElementById('edit-player-id').value;
       const name = document.getElementById('edit-player-name').value.trim();
       const discordId = document.getElementById('edit-player-discord-id').value.trim();
@@ -1315,35 +1609,52 @@
       }
 
       const playerIdx = players.findIndex(p => p.id === id);
-      if (playerIdx !== -1) {
-        // 重複チェック
-        if (players.some((p, idx) => p.name === name && idx !== playerIdx)) {
-          showAppWarningModal("同じ名前のプレイヤーが既に登録されています。");
+      if (playerIdx === -1) return;
+
+      // 重複チェック
+      if (players.some((p, idx) => p.name === name && idx !== playerIdx)) {
+        showAppWarningModal("同じ名前のプレイヤーが既に登録されています。");
+        return;
+      }
+
+      // 新しく貼り付け/アップロードされた画像(data URL)だけをStorageにアップロードする。
+      // 既存アバターをそのまま使う場合はURL文字列のままなので再アップロードしない。
+      let finalAvatar = tempEditAvatarBase64;
+      if (finalAvatar && finalAvatar.startsWith('data:')) {
+        finalAvatar = await uploadImageToStorage(finalAvatar, AVATAR_BUCKET);
+      }
+
+      if (currentRole === 'admin') {
+        // 管理者：即時適用
+        const { error } = await supabaseClient.from('players').update({
+          name: name,
+          discord_id: discordId,
+          avatar_url: finalAvatar,
+          edit_pending: null
+        }).eq('id', id);
+        if (error) {
+          console.error(error);
+          showAppWarningModal("プロフィールの更新に失敗しました。通信環境を確認してください。");
           return;
         }
-
-        if (currentRole === 'admin') {
-          // 管理者：即時適用
-          players[playerIdx].name = name;
-          players[playerIdx].discordId = discordId;
-          players[playerIdx].avatar = tempEditAvatarBase64;
-          players[playerIdx].editPending = null; 
-          savePlayers();
-          renderAll();
-          showToast(`「${name}」さんのプロフィール変更を即時反映しました！`);
-        } else {
-          // 一般テスター：承認待ちデータとしてプール
-          players[playerIdx].editPending = {
-            name: name,
-            discordId: discordId,
-            avatar: tempEditAvatarBase64
-          };
-          savePlayers();
-          renderAll();
-          showToast(`「${name}」さんのプロフィール編集変更を申請しました。`);
+        await loadPlayersFromDB();
+        renderAll();
+        showToast(`「${name}」さんのプロフィール変更を即時反映しました！`);
+      } else {
+        // 一般テスター：承認待ちデータとしてプール
+        const { error } = await supabaseClient.from('players').update({
+          edit_pending: { name: name, discordId: discordId, avatar: finalAvatar }
+        }).eq('id', id);
+        if (error) {
+          console.error(error);
+          showAppWarningModal("編集申請の送信に失敗しました。通信環境を確認してください。");
+          return;
         }
-        closePlayerEditModal();
+        await loadPlayersFromDB();
+        renderAll();
+        showToast(`「${name}」さんのプロフィール編集変更を申請しました。`);
       }
+      closePlayerEditModal();
     }
 
     // 【改良】確認モーダル（削除確認ダイアログの表示）
@@ -1356,10 +1667,14 @@
         "プレイヤーの削除",
         `本当に「${player.name}」さんを削除しますか？\n（関連するすべての過去戦績履歴はそのまま残りますが、プレイヤー一覧やランキングからは完全に削除されます）`,
         true, // 危険アクション(赤ボタン)
-        function() {
-          // 実際の削除処理
-          players = players.filter(p => p.id !== id);
-          savePlayers();
+        async function() {
+          const { error } = await supabaseClient.from('players').delete().eq('id', id);
+          if (error) {
+            console.error(error);
+            showAppWarningModal("削除処理に失敗しました。通信環境を確認してください。");
+            return;
+          }
+          await loadPlayersFromDB();
           renderAll();
           closePlayerEditModal();
           showToast(`「${player.name}」さんをシステムから削除しました。`);
@@ -1373,13 +1688,19 @@
         "データの初期化確認",
         "データをテスト用の初期状態に戻してもよろしいですか？（現在のすべての追加プレイヤーと戦績がリセットされます）",
         false, // 通常の警告(黄ボタン)
-        function() {
-          players = JSON.parse(JSON.stringify(defaultPlayers));
-          matches = JSON.parse(JSON.stringify(defaultMatches));
-          savePlayers();
-          saveMatches();
+        async function() {
+          const { error: delPlayersErr } = await supabaseClient.from('players').delete().neq('id', '__none__');
+          const { error: delMatchesErr } = await supabaseClient.from('matches').delete().neq('id', '__none__');
+          if (delPlayersErr || delMatchesErr) {
+            console.error(delPlayersErr, delMatchesErr);
+            showAppWarningModal("初期化に失敗しました。通信環境を確認してください。");
+            return;
+          }
+          await supabaseClient.from('players').insert(defaultPlayers.map(playerToRow));
+          await supabaseClient.from('matches').insert(defaultMatches.map(matchToRow));
+          await Promise.all([loadPlayersFromDB(), loadMatchesFromDB()]);
           renderAll();
-          showToast("データを初期状態にリセットしました。");
+          showToast("データを初期状態にリセットしました。(全員のブラウザに反映されます)");
         }
       );
     }
@@ -1414,7 +1735,7 @@
         const isChecked = selectedMemberIds.includes(p.id);
         const div = document.createElement('div');
         div.className = `flex items-center justify-between p-2 rounded-lg transition-all ${isChecked ? 'bg-indigo-50 border border-indigo-100' : 'hover:bg-gray-100'}`;
-        
+
         const avatarHtml = getAvatarElementHtml(p, 7);
 
         // 承認待ちプレイヤー(Pending)
@@ -1456,7 +1777,7 @@
 
       // ステップ2の勝者ボタンリストをグリッドで配置
       container.className = "space-y-2 border border-indigo-100 rounded-xl p-3 bg-indigo-50/30";
-      
+
       const titleLabel = document.createElement('div');
       titleLabel.className = "text-[10px] text-slate-500 font-bold mb-1.5 flex items-center gap-1";
       titleLabel.innerHTML = `<i class="fa-solid fa-arrow-down-long text-indigo-500"></i> この中から「勝者（1名）」をタップしてください（デフォルト未選択）`;
@@ -1464,7 +1785,7 @@
 
       const gridDiv = document.createElement('div');
       gridDiv.className = "grid grid-cols-2 sm:grid-cols-2 gap-2";
-      
+
       selectedMemberIds.forEach(id => {
         const p = players.find(player => player.id === id);
         if (!p) return;
@@ -1473,7 +1794,7 @@
         const btn = document.createElement('button');
         btn.type = "button";
         btn.onclick = () => selectWinner(id);
-        
+
         // アバター画像の読み込み (getPlayerAvatarSrc を通すためeditPendingが考慮されます)
         const avatarHtml = getAvatarElementHtml(p, 6);
 
@@ -1513,7 +1834,7 @@
       } else {
         selectedMemberIds.push(id);
       }
-      
+
       selectedWinnerId = null;
 
       renderWinnerSelection();
@@ -1568,17 +1889,23 @@
         pendingList.forEach(match => {
           const winner = players.find(p => p.id === match.winnerId);
           const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(", ");
-          
+
           const item = document.createElement('div');
           item.className = "bg-amber-50/50 border border-amber-100 rounded-xl p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 fade-in";
+          const proofThumbHtml = match.proofImage
+            ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-14 h-14 object-cover rounded-lg border border-amber-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
+            : `<div class="w-14 h-14 rounded-lg border border-dashed border-rose-200 bg-rose-50 flex items-center justify-center text-rose-400 text-[9px] font-bold text-center shrink-0 p-1">証拠なし</div>`;
           item.innerHTML = `
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-1.5 mb-1 flex-wrap">
-                <span class="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">戦績申請</span>
-                <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
+            <div class="min-w-0 flex-1 flex gap-3 items-start">
+              ${proofThumbHtml}
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+                  <span class="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">戦績申請</span>
+                  <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
+                </div>
+                <div class="text-xs text-slate-700 truncate"><span class="font-bold">メンバー:</span> ${membersNames}</div>
+                <div class="text-xs text-amber-800 font-bold mt-0.5">👑 勝者: ${winner ? winner.name : '未選定'}</div>
               </div>
-              <div class="text-xs text-slate-700 truncate"><span class="font-bold">メンバー:</span> ${membersNames}</div>
-              <div class="text-xs text-amber-800 font-bold mt-0.5">👑 勝者: ${winner ? winner.name : '未選定'}</div>
             </div>
             <div class="flex gap-2 w-full sm:w-auto self-end sm:self-center shrink-0">
               <button onclick="approveMatch('${match.id}')" class="flex-grow sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-sm transition">承認</button>
@@ -1655,7 +1982,7 @@
                 <button onclick="rejectPlayerEdit('${player.id}')" class="flex-1 sm:flex-initial bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs py-1.5 px-3 rounded-lg border border-rose-200 transition">却下</button>
               </div>
             </div>
-            
+
             <!-- 変更前後の比較表示 -->
             <div class="grid grid-cols-2 gap-3 bg-white p-2.5 rounded-xl border border-pink-100/50 text-xs">
               <div class="border-r border-slate-100 pr-2">
@@ -1692,7 +2019,7 @@
       if (approvedList.length === 0) {
         approvedBody.innerHTML = `
           <tr>
-            <td colspan="4" class="px-4 py-6 text-center text-slate-400 italic">
+            <td colspan="5" class="px-4 py-6 text-center text-slate-400 italic">
               承認済みの対戦データはありません。
             </td>
           </tr>
@@ -1701,11 +2028,15 @@
         approvedList.forEach(match => {
           const winner = players.find(p => p.id === match.winnerId);
           const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(" / ");
+          const proofCellHtml = match.proofImage
+            ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-9 h-9 object-cover rounded-md border border-slate-200 cursor-pointer" title="プレイ証拠スクショを拡大表示">`
+            : `<span class="text-rose-400 text-[10px]">なし</span>`;
 
           const tr = document.createElement('tr');
           tr.className = "hover:bg-slate-50/50 transition";
           tr.innerHTML = `
             <td class="px-4 py-2.5 font-mono text-slate-500 whitespace-nowrap">${match.date}</td>
+            <td class="px-4 py-2.5">${proofCellHtml}</td>
             <td class="px-4 py-2.5 text-slate-700 max-w-xs truncate" title="${membersNames}">${membersNames}</td>
             <td class="px-4 py-2.5 font-black text-amber-700 whitespace-nowrap">👑 ${winner ? winner.name : "不明"}</td>
             <td class="px-4 py-2.5 text-right whitespace-nowrap">
@@ -1720,14 +2051,18 @@
     }
 
     // --- プレイヤー関係の承認アクション ---
-    function approvePlayer(playerId) {
-      const pIdx = players.findIndex(p => p.id === playerId);
-      if (pIdx !== -1) {
-        players[pIdx].status = "approved";
-        savePlayers();
-        renderAll();
-        showToast(`「${players[pIdx].name}」さんのプレイヤー本登録を承認しました！`);
+    async function approvePlayer(playerId) {
+      const player = players.find(p => p.id === playerId);
+      if (!player) return;
+      const { error } = await supabaseClient.from('players').update({ status: 'approved' }).eq('id', playerId);
+      if (error) {
+        console.error(error);
+        showAppWarningModal("承認処理に失敗しました。通信環境を確認してください。");
+        return;
       }
+      await loadPlayersFromDB();
+      renderAll();
+      showToast(`「${player.name}」さんのプレイヤー本登録を承認しました！`);
     }
 
     function rejectPlayer(playerId) {
@@ -1737,9 +2072,14 @@
           "プレイヤー申請の却下",
           `「${player.name}」さんの新規登録申請を却下し、データを完全に削除しますか？`,
           true,
-          function() {
-            players = players.filter(p => p.id !== playerId);
-            savePlayers();
+          async function() {
+            const { error } = await supabaseClient.from('players').delete().eq('id', playerId);
+            if (error) {
+              console.error(error);
+              showAppWarningModal("却下処理に失敗しました。通信環境を確認してください。");
+              return;
+            }
+            await loadPlayersFromDB();
             renderAll();
             showToast("プレイヤー登録申請を却下しました。");
           }
@@ -1747,41 +2087,50 @@
       }
     }
 
-    function approvePlayerEdit(playerId) {
-      const pIdx = players.findIndex(p => p.id === playerId);
-      if (pIdx !== -1 && players[pIdx].editPending) {
-        const editData = players[pIdx].editPending;
-        players[pIdx].name = editData.name;
-        players[pIdx].discordId = editData.discordId;
-        players[pIdx].avatar = editData.avatar;
-        players[pIdx].editPending = null; 
-        
-        savePlayers();
-        renderAll();
-        showToast(`「${players[pIdx].name}」さんのプロフィール編集変更を承認しました！`);
+    async function approvePlayerEdit(playerId) {
+      const player = players.find(p => p.id === playerId);
+      if (!player || !player.editPending) return;
+      const editData = player.editPending;
+      const { error } = await supabaseClient.from('players').update({
+        name: editData.name,
+        discord_id: editData.discordId,
+        avatar_url: editData.avatar,
+        edit_pending: null
+      }).eq('id', playerId);
+      if (error) {
+        console.error(error);
+        showAppWarningModal("承認処理に失敗しました。通信環境を確認してください。");
+        return;
       }
+      await loadPlayersFromDB();
+      renderAll();
+      showToast(`「${editData.name}」さんのプロフィール編集変更を承認しました！`);
     }
 
     function rejectPlayerEdit(playerId) {
-      const pIdx = players.findIndex(p => p.id === playerId);
-      if (pIdx !== -1) {
-        showAppConfirmModal(
-          "編集申請の却下",
-          `「${players[pIdx].name}」さんのプロフィール変更申請を却下しますか？（現在のプロフィール情報は維持されます）`,
-          true,
-          function() {
-            players[pIdx].editPending = null; 
-            savePlayers();
-            renderAll();
-            showToast("プロフィール編集申請を却下しました。");
+      const player = players.find(p => p.id === playerId);
+      if (!player) return;
+      showAppConfirmModal(
+        "編集申請の却下",
+        `「${player.name}」さんのプロフィール変更申請を却下しますか？（現在のプロフィール情報は維持されます）`,
+        true,
+        async function() {
+          const { error } = await supabaseClient.from('players').update({ edit_pending: null }).eq('id', playerId);
+          if (error) {
+            console.error(error);
+            showAppWarningModal("却下処理に失敗しました。通信環境を確認してください。");
+            return;
           }
-        );
-      }
+          await loadPlayersFromDB();
+          renderAll();
+          showToast("プロフィール編集申請を却下しました。");
+        }
+      );
     }
 
     // --- 各種アクション処理（戦績登録・コピーなど） ---
 
-    function submitMatch() {
+    async function submitMatch() {
       const dateVal = document.getElementById('match-date').value;
       if (!dateVal) {
         showAppWarningModal("プレイ日を選択してください。");
@@ -1791,7 +2140,7 @@
         showAppWarningModal("参加メンバーを1名以上選択してください。");
         return;
       }
-      
+
       // 改良：勝者の未選択を画面中央の確認モーダル（永続的警告）で厳格にブロック
       if (!selectedWinnerId) {
         showAppWarningModal("勝者が選択されていません。\n選択中メンバーリストの中から、勝者（1名）をタップしてクラウン（王冠）を点灯させてから登録してください！");
@@ -1804,18 +2153,40 @@
         return;
       }
 
+      if (!tempMatchProofBase64) {
+        showAppWarningModal("プレイ証拠のスクリーンショットを貼り付けてください。\nユドナリウムで実際に遊んだ画面のスクショが必要です。");
+        const proofZone = document.getElementById('match-proof-paste-zone');
+        if (proofZone) {
+          proofZone.scrollIntoView({ behavior: 'smooth' });
+          proofZone.classList.add('ring-2', 'ring-rose-400');
+          setTimeout(() => proofZone.classList.remove('ring-2', 'ring-rose-400'), 1500);
+        }
+        return;
+      }
+
+      const proofUrl = await uploadImageToStorage(tempMatchProofBase64, PROOF_BUCKET);
+      if (!proofUrl) {
+        return;
+      }
+
       const newMatch = {
         id: "m_" + Date.now(),
         date: dateVal,
         members: [...selectedMemberIds],
         winnerId: selectedWinnerId,
+        proofImage: proofUrl,
         status: currentRole === 'admin' ? 'approved' : 'pending',
         createdAt: Date.now()
       };
 
-      matches.push(newMatch);
-      saveMatches();
-      
+      const { error } = await supabaseClient.from('matches').insert(matchToRow(newMatch));
+      if (error) {
+        console.error(error);
+        showAppWarningModal("戦績の登録に失敗しました。通信環境を確認してください。");
+        return;
+      }
+
+      await loadMatchesFromDB();
       renderAll();
       updateBoardDateTime();
 
@@ -1823,7 +2194,10 @@
       selectedWinnerId = null;
       document.getElementById('member-search').value = "";
       searchQuery = "";
-      
+      tempMatchProofBase64 = "";
+      document.getElementById('match-proof-file').value = "";
+      updateMatchProofPreview();
+
       const stats = computePlayerStats();
       renderMemberSelection(Object.values(stats));
 
@@ -1845,26 +2219,34 @@
       }
     }
 
-    function approveMatch(matchId) {
+    async function approveMatch(matchId) {
       const match = matches.find(m => m.id === matchId);
-      if (match) {
-        match.status = 'approved';
-        saveMatches();
-        renderAll();
-        updateBoardDateTime();
-        showToast("戦績の申請を承認しました！");
+      if (!match) return;
+      const { error } = await supabaseClient.from('matches').update({ status: 'approved' }).eq('id', matchId);
+      if (error) {
+        console.error(error);
+        showAppWarningModal("承認処理に失敗しました。通信環境を確認してください。");
+        return;
       }
+      await loadMatchesFromDB();
+      renderAll();
+      updateBoardDateTime();
+      showToast("戦績の申請を承認しました！");
     }
 
-    // ドキュメント全体でのPaste監視
     function deleteMatch(matchId) {
       showAppConfirmModal(
         "戦績データの削除",
         "この戦績データを削除しますか？（削除後はランキングから該当データが即時マイナスされます）",
         true,
-        function() {
-          matches = matches.filter(m => m.id !== matchId);
-          saveMatches();
+        async function() {
+          const { error } = await supabaseClient.from('matches').delete().eq('id', matchId);
+          if (error) {
+            console.error(error);
+            showAppWarningModal("削除処理に失敗しました。通信環境を確認してください。");
+            return;
+          }
+          await loadMatchesFromDB();
           renderAll();
           updateBoardDateTime();
           showToast("戦績データを削除しました。");
@@ -1873,7 +2255,7 @@
     }
 
     // プレイヤーの追加 (コピペ＆手動。承認待ちフローに対応)
-    function addPlayerHandy() {
+    async function addPlayerHandy() {
       const nameInput = document.getElementById('new-player-name');
       const name = nameInput.value.trim();
       const discordIdInput = document.getElementById('new-player-discord-id');
@@ -1891,40 +2273,40 @@
         return;
       }
 
-      const saveNewPlayer = (finalAvatar = "") => {
-        const isApproved = currentRole === 'admin';
-        const newP = {
-          id: "p_" + Date.now(),
-          name: name,
-          discordId: discordId, 
-          avatar: finalAvatar,
-          customTriangleColor: "",
-          status: isApproved ? "approved" : "pending",
-          editPending: null
-        };
+      const isApproved = currentRole === 'admin';
+      const avatarUrl = tempAvatarBase64 !== "" ? await uploadImageToStorage(tempAvatarBase64, AVATAR_BUCKET) : "";
 
-        players.push(newP);
-        savePlayers();
-        renderAll();
-
-        // フォームリセット
-        nameInput.value = "";
-        discordIdInput.value = "";
-        fileInput.value = "";
-        tempAvatarBase64 = "";
-        updateAvatarPreview();
-
-        if (isApproved) {
-          showToast(`「${name}」さんをプレイヤー登録しました。`);
-        } else {
-          showToast(`「${name}」さんのプレイヤー追加申請を送信しました。`);
-        }
+      const newP = {
+        id: "p_" + Date.now(),
+        name: name,
+        discordId: discordId,
+        avatar: avatarUrl,
+        customTriangleColor: "",
+        status: isApproved ? "approved" : "pending",
+        editPending: null
       };
 
-      if (tempAvatarBase64 !== "") {
-        saveNewPlayer(tempAvatarBase64);
+      const { error } = await supabaseClient.from('players').insert(playerToRow(newP));
+      if (error) {
+        console.error(error);
+        showAppWarningModal("プレイヤーの登録に失敗しました。通信環境を確認してください。");
+        return;
+      }
+
+      await loadPlayersFromDB();
+      renderAll();
+
+      // フォームリセット
+      nameInput.value = "";
+      discordIdInput.value = "";
+      fileInput.value = "";
+      tempAvatarBase64 = "";
+      updateAvatarPreview();
+
+      if (isApproved) {
+        showToast(`「${name}」さんをプレイヤー登録しました。`);
       } else {
-        saveNewPlayer("");
+        showToast(`「${name}」さんのプレイヤー追加申請を送信しました。`);
       }
     }
 
@@ -1949,7 +2331,7 @@
       document.getElementById('new-player-name').value = guessedName;
       document.getElementById('new-player-avatar-file').value = "";
       tempAvatarBase64 = "";
-      
+
       updateAvatarPreview();
       showToast("名前とアバター候補を推測生成しました！");
     }
@@ -1960,7 +2342,7 @@
       const toast = document.getElementById('status-toast');
       const text = document.getElementById('status-toast-text');
       const icon = document.getElementById('toast-icon');
-      
+
       text.innerText = message;
       icon.className = "fa-solid fa-circle-check text-emerald-400 text-lg shrink-0";
       toast.classList.remove('hidden');
@@ -1987,17 +2369,17 @@
     function toggleOptimizeMode() {
       isOptimizeMode = !isOptimizeMode;
       const optimizeBtn = document.getElementById('optimize-mode-btn');
-      
+
       if (isOptimizeMode) {
         optimizeBtn.innerHTML = `<i class="fa-solid fa-compress"></i> 編集モードに戻る`;
         optimizeBtn.className = "bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5";
-        
+
         document.querySelector('header').classList.add('hidden');
         document.querySelector('footer').classList.add('hidden');
         document.querySelector('.lg\\:col-span-4').classList.add('hidden');
         document.getElementById('admin-section').classList.add('hidden');
         document.getElementById('pending-banner').classList.add('hidden');
-        
+
         document.querySelector('.grid').className = "grid grid-cols-1 gap-6 max-w-4xl mx-auto";
         showToast("スクショ最適化モードになりました。[ESC]を押すか、ボタンから元に戻れます。");
       } else {
@@ -2031,15 +2413,15 @@
     // --- 【超強力】画像が絶対につぶれない & 全員写る＆文字欠けしないPNGダウンロード機能 ---
     function exportDashboardToPNG() {
       showToast("撮影用に最適化中... しばらくお待ちください。");
-      
+
       const target = document.getElementById('dashboard-capture');
-      
+
       const options = {
         scale: 2,
         useCORS: true,
         backgroundColor: '#f7f8fa',
         logging: false,
-        windowWidth: 1240, 
+        windowWidth: 1240,
         onclone: (clonedDoc) => {
           const clonedGrid = clonedDoc.getElementById('players-grid-container');
           if (clonedGrid) {
@@ -2068,7 +2450,7 @@
             const link = document.createElement('a');
             const d = new Date();
             const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-            
+
             link.download = `7shades_stats_${dateStr}.png`;
             link.href = imgData;
             document.body.appendChild(link);
@@ -2092,19 +2474,19 @@
       }
 
       let csvContent = "対戦ID,日付,参加メンバー,勝者ID,勝者名\r\n";
-      
+
       approvedList.forEach(match => {
         const winner = players.find(p => p.id === match.winnerId);
         const winnerName = winner ? winner.name : "不明";
         const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(" / ");
-        
+
         csvContent += `"${match.id}","${match.date}","${membersNames}","${match.winnerId}","${winnerName}"\r\n`;
       });
 
       const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
       const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      
+
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', '7shades_match_history.csv');
@@ -2114,6 +2496,68 @@
 
       showToast("CSVファイルのエクスポートに成功しました！");
     }
+
+    // --- 起動時初期化処理 ---
+    // ここが無いと、保存済みデータの読み込み(loadData)も初期描画(renderAll)も一切実行されず、
+    // ページを開いた瞬間は常に空表示になり、リセットボタン(明示的にrenderAllを呼ぶ)を押した時だけ
+    // 30人が表示される、という今回の不具合の直接原因になっていた。
+    // 他の利用者による変更(戦績・プレイヤー・パスワード)をリアルタイムで自動反映する
+    function subscribeRealtimeSync() {
+      supabaseClient
+        .channel('public:players-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, async () => {
+          await loadPlayersFromDB();
+          renderAll();
+        })
+        .subscribe();
+
+      supabaseClient
+        .channel('public:matches-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, async () => {
+          await loadMatchesFromDB();
+          renderAll();
+          updateBoardDateTime();
+        })
+        .subscribe();
+
+      supabaseClient
+        .channel('public:app_settings-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
+          if (payload.new && payload.new.admin_password) {
+            adminPassword = payload.new.admin_password;
+          }
+        })
+        .subscribe();
+    }
+
+    document.addEventListener('DOMContentLoaded', async function() {
+      await loadData();
+      updateBoardDateTime();
+      renderAll();
+      subscribeRealtimeSync();
+
+      // クリップボード貼り付け(Ctrl+V)ゾーンの有効化
+      setupPasteZone('paste-zone-box', (dataUrl) => {
+        tempAvatarBase64 = dataUrl;
+        updateAvatarPreview();
+      });
+      setupPasteZone('edit-paste-zone', (dataUrl) => {
+        tempEditAvatarBase64 = dataUrl;
+        updateEditAvatarPreview();
+      });
+      setupPasteZone('match-proof-paste-zone', (dataUrl) => {
+        tempMatchProofBase64 = dataUrl;
+        updateMatchProofPreview();
+      });
+
+      // プレイ日のデフォルト値を今日の日付にセット
+      const dateInput = document.getElementById('match-date');
+      if (dateInput && !dateInput.value) {
+        const today = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        dateInput.value = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+      }
+    });
 
   </script>
 </body>
