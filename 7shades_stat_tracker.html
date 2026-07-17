@@ -939,7 +939,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171626";
+    const BUILD_VERSION = "202607171648";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1495,6 +1495,22 @@
       document.getElementById('total-players-badge').innerText = `登録者: ${players.filter(p => p.status === 'approved').length}人`;
     }
 
+    // 長文コメント用: 一定文字数を超えたら省略し、「続きを表示」で全文展開できるようにする
+    function buildExpandableTextHtml(text, uniqueId, maxLength = 120) {
+      if (!text || text.length <= maxLength) {
+        return text || "";
+      }
+      const shortText = text.slice(0, maxLength) + "…";
+      return `
+        <span id="${uniqueId}-short">${shortText} <button type="button" onclick="toggleExpandableText('${uniqueId}')" class="text-indigo-500 hover:text-indigo-700 font-bold underline">続きを表示</button></span>
+        <span id="${uniqueId}-full" class="hidden">${text} <button type="button" onclick="toggleExpandableText('${uniqueId}')" class="text-indigo-500 hover:text-indigo-700 font-bold underline">閉じる</button></span>
+      `;
+    }
+    function toggleExpandableText(uniqueId) {
+      document.getElementById(`${uniqueId}-short`).classList.toggle('hidden');
+      document.getElementById(`${uniqueId}-full`).classList.toggle('hidden');
+    }
+
     // 過去の戦績履歴 (参加者を含め全員に公開。新しい順)
     function renderPublicMatchHistory() {
       const container = document.getElementById('match-history-container');
@@ -1541,7 +1557,7 @@
           : `<div class="w-16 h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 text-[9px] font-bold text-center shrink-0 p-1">証拠なし</div>`;
 
         const feedbackHtml = match.feedback && match.feedback.trim() !== ""
-          ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${match.feedback}</p>`
+          ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${buildExpandableTextHtml(match.feedback, 'history-feedback-' + match.id)}</p>`
           : '';
 
         const item = document.createElement('div');
@@ -2439,7 +2455,7 @@
             ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-14 h-14 object-cover rounded-lg border border-amber-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
             : `<div class="w-14 h-14 rounded-lg border border-dashed border-rose-200 bg-rose-50 flex items-center justify-center text-rose-400 text-[9px] font-bold text-center shrink-0 p-1">証拠なし</div>`;
           const feedbackHtml = match.feedback && match.feedback.trim() !== ""
-            ? `<div class="text-[10px] text-slate-500 bg-white border border-amber-100 rounded-lg p-1.5 mt-1 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${match.feedback}</div>`
+            ? `<div class="text-[10px] text-slate-500 bg-white border border-amber-100 rounded-lg p-1.5 mt-1 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${buildExpandableTextHtml(match.feedback, 'pending-feedback-' + match.id)}</div>`
             : '';
           item.innerHTML = `
             <div class="min-w-0 flex-1 flex gap-3 items-start">
