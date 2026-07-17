@@ -931,7 +931,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171605";
+    const BUILD_VERSION = "202607171614";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1691,6 +1691,79 @@
       return output;
     }
 
+    // ランキングカード用アバターHTML (三角のティア表示付き)
+    function buildRankAvatarHtml(player, sizePx) {
+      const trigSize = Math.max(4, Math.floor(sizePx * 0.3));
+      const color = getContributionColor(player.matchesCount, player.customTriangleColor);
+      const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
+
+      let avatarImgHtml = "";
+      const avatarSrc = getPlayerAvatarSrc(player);
+      if (avatarSrc) {
+        avatarImgHtml = `<img src="${avatarSrc}" class="w-full h-full object-cover bg-slate-100">`;
+      } else {
+        const char = player.name ? player.name.charAt(0).toUpperCase() : '?';
+        const bgIdx = Math.abs(player.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % avatarBgColors.length;
+        const bgColor = avatarBgColors[bgIdx];
+        avatarImgHtml = `<div class="w-full h-full flex items-center justify-center text-white font-black" style="background-color: ${bgColor}; font-size: ${Math.floor(sizePx * 0.44)}px">${char}</div>`;
+      }
+
+      return `
+        <div class="relative" title="${tooltip}">
+          <div class="rounded-full border-2 border-white/30 overflow-hidden shadow-lg bg-slate-800" style="width: ${sizePx}px; height: ${sizePx}px;">
+            ${avatarImgHtml}
+          </div>
+          <div class="absolute bottom-0 right-0 triangle-indicator"
+               style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
+          </div>
+        </div>
+      `;
+    }
+
+    // 同順位のプレイヤーを1枚のカードにまとめて表示する (順位ごとにカード数を常に3枚以内に保つ)
+    // rankedはselectTopByDenseRankの戻り値。statHtmlFnは代表プレイヤー(同順位内は数値が同じ)を受け取りスタッツHTMLを返す
+    function renderRankGroupCards(container, ranked, statHtmlFn) {
+      const badgeColors = [
+        "bg-amber-400 text-amber-950 border-yellow-200 shadow-md shadow-amber-500/40",
+        "bg-slate-300 text-slate-800 border-slate-100 shadow-md shadow-slate-400/30",
+        "bg-amber-600 text-white border-amber-400 shadow-md shadow-amber-700/30"
+      ];
+      const badgeTexts = ["🥇", "🥈", "🥉"];
+
+      const groups = [];
+      ranked.forEach(({ item, rank }) => {
+        let group = groups.find(g => g.rank === rank);
+        if (!group) {
+          group = { rank, players: [] };
+          groups.push(group);
+        }
+        group.players.push(item);
+      });
+
+      groups.forEach(group => {
+        const idx = group.rank - 1;
+        const sizePx = group.players.length === 1 ? 64 : 44;
+
+        const membersHtml = group.players.map(player => `
+          <div class="flex flex-col items-center gap-1 min-w-0" style="max-width: ${group.players.length === 1 ? '100%' : '72px'};">
+            ${buildRankAvatarHtml(player, sizePx)}
+            <div class="font-black text-xs text-white truncate max-w-full" title="${player.name}">${player.name}</div>
+          </div>
+        `).join('');
+
+        const card = document.createElement('div');
+        card.className = "relative bg-white/10 rounded-2xl p-4 flex flex-col items-center text-center border border-white/10 hover:bg-white/15 transition";
+        card.innerHTML = `
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full border-2 border-white/50 flex items-center justify-center text-sm font-black ${badgeColors[idx]} z-10">
+            ${badgeTexts[idx]}
+          </div>
+          <div class="flex flex-wrap justify-center gap-3 mt-3 mb-3">${membersHtml}</div>
+          <div class="flex gap-2 w-full justify-center">${statHtmlFn(group.players[0])}</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
     function renderTop3Ranking(approvedStatsList) {
       const container = document.getElementById('top3-ranking-container');
       container.innerHTML = "";
@@ -1733,63 +1806,16 @@
         return;
       }
 
-      ranked.forEach(({ item: player, rank }) => {
-        const idx = rank - 1;
-        const badgeColors = [
-          "bg-amber-400 text-amber-950 border-yellow-200 shadow-md shadow-amber-500/40",
-          "bg-slate-300 text-slate-800 border-slate-100 shadow-md shadow-slate-400/30",
-          "bg-amber-600 text-white border-amber-400 shadow-md shadow-amber-700/30"
-        ];
-        const badgeTexts = ["🥇", "🥈", "🥉"];
-
-        const sizePx = 64;
-        const trigSize = 20;
-        const color = getContributionColor(player.matchesCount, player.customTriangleColor);
-        const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
-
-        let avatarImgHtml = "";
-        const avatarSrc = getPlayerAvatarSrc(player);
-        if (avatarSrc) {
-          avatarImgHtml = `<img src="${avatarSrc}" class="w-full h-full object-cover bg-slate-100">`;
-        } else {
-          const char = player.name ? player.name.charAt(0).toUpperCase() : '?';
-          const bgIdx = Math.abs(player.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % avatarBgColors.length;
-          const bgColor = avatarBgColors[bgIdx];
-          avatarImgHtml = `
-            <div class="w-full h-full flex items-center justify-center text-white font-black" style="background-color: ${bgColor}; font-size: 28px">
-              ${char}
-            </div>
-          `;
-        }
-
-        const card = document.createElement('div');
-        card.className = "relative bg-white/10 rounded-2xl p-4 flex flex-col items-center text-center border border-white/10 hover:bg-white/15 transition";
-        card.innerHTML = `
-          <div class="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full border-2 border-white/50 flex items-center justify-center text-sm font-black ${badgeColors[idx]} z-10">
-            ${badgeTexts[idx]}
-          </div>
-          <div class="relative mt-2 mb-2" title="${tooltip}">
-            <div class="rounded-full border-2 border-white/30 overflow-hidden shadow-lg bg-slate-800" style="width: ${sizePx}px; height: ${sizePx}px;">
-              ${avatarImgHtml}
-            </div>
-            <div class="absolute bottom-0 right-0 triangle-indicator"
-                 style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
-            </div>
-          </div>
-          <div class="font-black text-sm text-white truncate max-w-full" title="${player.name}">${player.name}</div>
-          <div class="flex gap-2 mt-3 w-full justify-center">
-            <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
-              <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝率</span>
-              <span class="font-mono font-black text-amber-300 text-sm">${player.winRate}%</span>
-            </div>
-            <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
-              <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝利</span>
-              <span class="font-mono font-bold text-white text-sm">${player.winsCount}</span>
-            </div>
-          </div>
-        `;
-        container.appendChild(card);
-      });
+      renderRankGroupCards(container, ranked, (player) => `
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝率</span>
+          <span class="font-mono font-black text-amber-300 text-sm">${player.winRate}%</span>
+        </div>
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝利</span>
+          <span class="font-mono font-bold text-white text-sm">${player.winsCount}</span>
+        </div>
+      `);
     }
 
     // 対戦数ランキング TOP3 (参加基準なし。単純に対戦数が多い順)
@@ -1815,63 +1841,16 @@
         return;
       }
 
-      ranked.forEach(({ item: player, rank }) => {
-        const idx = rank - 1;
-        const badgeColors = [
-          "bg-amber-400 text-amber-950 border-yellow-200 shadow-md shadow-amber-500/40",
-          "bg-slate-300 text-slate-800 border-slate-100 shadow-md shadow-slate-400/30",
-          "bg-amber-600 text-white border-amber-400 shadow-md shadow-amber-700/30"
-        ];
-        const badgeTexts = ["🥇", "🥈", "🥉"];
-
-        const sizePx = 64;
-        const trigSize = 20;
-        const color = getContributionColor(player.matchesCount, player.customTriangleColor);
-        const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
-
-        let avatarImgHtml = "";
-        const avatarSrc = getPlayerAvatarSrc(player);
-        if (avatarSrc) {
-          avatarImgHtml = `<img src="${avatarSrc}" class="w-full h-full object-cover bg-slate-100">`;
-        } else {
-          const char = player.name ? player.name.charAt(0).toUpperCase() : '?';
-          const bgIdx = Math.abs(player.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % avatarBgColors.length;
-          const bgColor = avatarBgColors[bgIdx];
-          avatarImgHtml = `
-            <div class="w-full h-full flex items-center justify-center text-white font-black" style="background-color: ${bgColor}; font-size: 28px">
-              ${char}
-            </div>
-          `;
-        }
-
-        const card = document.createElement('div');
-        card.className = "relative bg-white/10 rounded-2xl p-4 flex flex-col items-center text-center border border-white/10 hover:bg-white/15 transition";
-        card.innerHTML = `
-          <div class="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full border-2 border-white/50 flex items-center justify-center text-sm font-black ${badgeColors[idx]} z-10">
-            ${badgeTexts[idx]}
-          </div>
-          <div class="relative mt-2 mb-2" title="${tooltip}">
-            <div class="rounded-full border-2 border-white/30 overflow-hidden shadow-lg bg-slate-800" style="width: ${sizePx}px; height: ${sizePx}px;">
-              ${avatarImgHtml}
-            </div>
-            <div class="absolute bottom-0 right-0 triangle-indicator"
-                 style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
-            </div>
-          </div>
-          <div class="font-black text-sm text-white truncate max-w-full" title="${player.name}">${player.name}</div>
-          <div class="flex gap-2 mt-3 w-full justify-center">
-            <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
-              <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">対戦</span>
-              <span class="font-mono font-black text-orange-300 text-sm">${player.matchesCount}</span>
-            </div>
-            <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
-              <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝率</span>
-              <span class="font-mono font-bold text-white text-sm">${player.winRate}%</span>
-            </div>
-          </div>
-        `;
-        container.appendChild(card);
-      });
+      renderRankGroupCards(container, ranked, (player) => `
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">対戦</span>
+          <span class="font-mono font-black text-orange-300 text-sm">${player.matchesCount}</span>
+        </div>
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝率</span>
+          <span class="font-mono font-bold text-white text-sm">${player.winRate}%</span>
+        </div>
+      `);
     }
 
     // プレイヤー個別カードの構築（多角的なソートロジックを搭載）
