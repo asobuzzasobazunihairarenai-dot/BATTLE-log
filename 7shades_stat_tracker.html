@@ -13,9 +13,12 @@
   <!-- Supabase (複数人でのデータ共有バックエンド) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
-    /* アバター右下の三角インジケーター用クリップパス */
-    .triangle-indicator {
-      clip-path: polygon(100% 0, 0 100%, 100% 100%);
+    /* 対戦数15回以降のアバター丸枠(虹色グラデーション)をゆっくり回転させる */
+    @keyframes rainbow-ring-spin {
+      to { transform: rotate(360deg); }
+    }
+    .rainbow-ring-spin {
+      animation: rainbow-ring-spin 3s linear infinite;
     }
     /* スムーズなトランジション */
     .fade-in {
@@ -202,6 +205,17 @@
               <p class="text-[10px] text-slate-400 leading-normal">(<kbd class="bg-white border border-slate-200 px-1 py-0.5 rounded text-[9px] font-mono">Ctrl+V</kbd> で貼付け、または下からファイル選択)</p>
             </div>
             <input type="file" id="match-proof-file" onchange="updateMatchProofFromFile()" accept="image/*" class="w-full text-[10px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+          </div>
+
+          <!-- プレイ時間 (任意・目安) -->
+          <div class="border-t border-slate-100 pt-3 space-y-2">
+            <label class="block text-xs font-bold text-gray-500 flex items-center gap-1.5">
+              <i class="fa-solid fa-hourglass-half text-indigo-500"></i> プレイ時間 (任意・目安でOK)
+            </label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="match-duration" min="0" placeholder="例: 45" class="w-24 text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400">
+              <span class="text-xs text-slate-500 font-bold">分くらい</span>
+            </div>
           </div>
 
           <!-- 感想・フィードバック欄 (任意) -->
@@ -956,7 +970,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607180109";
+    const BUILD_VERSION = "202607180130";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1165,6 +1179,7 @@
         proofImage: row.proof_image_url || "",
         status: row.status,
         feedback: row.feedback || "",
+        durationMinutes: row.duration_minutes || null,
         createdAt: Number(row.created_at)
       };
     }
@@ -1177,6 +1192,7 @@
         proof_image_url: m.proofImage || "",
         status: m.status,
         feedback: m.feedback || "",
+        duration_minutes: m.durationMinutes || null,
         created_at: m.createdAt
       };
     }
@@ -1492,19 +1508,45 @@
       return stats;
     }
 
-    function getContributionColor(matchCount, customColor) {
-      if (customColor) return customColor;
-      if (matchCount >= 30) return "#38bdf8"; // プラチナ
-      if (matchCount >= 15) return "#f59e0b"; // ゴールド
-      if (matchCount >= 5)  return "#94a3b8"; // シルバー
-      return "#7c2d12"; // ブロンズ
+    // 対戦数に応じたアバターの丸枠ティア (0回=透明→赤橙黄緑青桃紫→8回以降は白→10回以降は黒→15回以降は虹色)
+    function getTierInfo(matchCount, customColor) {
+      if (customColor) {
+        return { type: 'ring', color: customColor, glow: null, label: 'カスタムカラー' };
+      }
+      if (matchCount >= 15) {
+        return { type: 'rainbow', label: 'レインボーレジェンド' };
+      }
+      if (matchCount >= 10) {
+        return { type: 'ring', color: '#0a0a0a', glow: 'rgba(0,0,0,0.7)', label: 'ブラックマスター' };
+      }
+      if (matchCount >= 8) {
+        return { type: 'ring', color: '#ffffff', glow: 'rgba(255,255,255,0.9)', label: 'ホワイトマスター' };
+      }
+      const tierColors = ['transparent', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#ec4899', '#a855f7'];
+      const tierLabels = ['テスター見習い', 'レッドテスター', 'オレンジテスター', 'イエローテスター', 'グリーンテスター', 'ブルーテスター', 'ピンクテスター', 'パープルテスター'];
+      const idx = Math.min(matchCount, 7);
+      return { type: 'ring', color: tierColors[idx], glow: null, label: tierLabels[idx] };
     }
 
-    function getContributionRankName(matchCount) {
-      if (matchCount >= 30) return "プラチナ貢献者";
-      if (matchCount >= 15) return "ゴールド貢献者";
-      if (matchCount >= 5)  return "シルバー貢献者";
-      return "ブロンズテスター";
+    // アバターの丸枠(対戦数ティアの色・虹色グラデーション)を構築する共通ヘルパー
+    function renderAvatarRingHtml(sizePx, tier, avatarImgHtml) {
+      if (tier.type === 'rainbow') {
+        const pad = Math.max(2, Math.floor(sizePx * 0.06));
+        return `
+          <div class="rounded-full rainbow-ring-spin" style="width: ${sizePx}px; height: ${sizePx}px; padding: ${pad}px; background: conic-gradient(#ef4444, #f97316, #eab308, #22c55e, #3b82f6, #6366f1, #a855f7, #ef4444);">
+            <div class="w-full h-full rounded-full overflow-hidden bg-slate-800">
+              ${avatarImgHtml}
+            </div>
+          </div>
+        `;
+      }
+      const borderWidth = Math.max(2, Math.floor(sizePx * 0.05));
+      const glowStyle = tier.glow ? `box-shadow: 0 0 ${Math.max(4, Math.floor(sizePx * 0.15))}px ${Math.max(1, Math.floor(sizePx * 0.05))}px ${tier.glow};` : '';
+      return `
+        <div class="rounded-full overflow-hidden bg-slate-800" style="width: ${sizePx}px; height: ${sizePx}px; border: ${borderWidth}px solid ${tier.color}; ${glowStyle}">
+          ${avatarImgHtml}
+        </div>
+      `;
     }
 
     // 登録プレイヤー戦績一覧の並び替え変更用ハンドラ
@@ -1616,6 +1658,10 @@
           ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
           : `<div class="w-16 h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 text-[9px] font-bold text-center shrink-0 p-1">証拠なし</div>`;
 
+        const durationHtml = match.durationMinutes
+          ? `<div class="text-[9px] text-slate-400 font-bold text-center mt-1"><i class="fa-solid fa-hourglass-half mr-0.5"></i>約${match.durationMinutes}分</div>`
+          : '';
+
         const feedbackHtml = match.feedback && match.feedback.trim() !== ""
           ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${buildExpandableTextHtml(match.feedback, 'history-feedback-' + match.id)}</p>`
           : '';
@@ -1623,7 +1669,10 @@
         const item = document.createElement('div');
         item.className = "border border-slate-200/80 rounded-xl p-3 flex gap-3 items-start";
         item.innerHTML = `
-          ${proofThumbHtml}
+          <div class="flex flex-col items-center shrink-0">
+            ${proofThumbHtml}
+            ${durationHtml}
+          </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5 mb-1 flex-wrap">
               <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
@@ -1643,8 +1692,8 @@
       if (!select) return;
       const previousValue = select.value;
       const approvedPlayers = players.filter(p => p.status === 'approved').sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-      select.innerHTML = approvedPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-      if (approvedPlayers.some(p => p.id === previousValue)) {
+      select.innerHTML = `<option value="">匿名</option>` + approvedPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      if (previousValue === "" || approvedPlayers.some(p => p.id === previousValue)) {
         select.value = previousValue;
       }
     }
@@ -1661,8 +1710,8 @@
       }
 
       gameComments.forEach(c => {
-        const author = players.find(p => p.id === c.playerId);
-        const authorName = author ? author.name : "不明なプレイヤー";
+        const author = c.playerId ? players.find(p => p.id === c.playerId) : null;
+        const authorName = c.playerId ? (author ? author.name : "不明なプレイヤー") : "匿名";
         const time = new Date(c.createdAt).toLocaleString('ja-JP');
         const deleteBtnHtml = currentRole === 'admin'
           ? `<button onclick="triggerDeleteGameCommentConfirm('${c.id}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="コメントを削除"><i class="fa-solid fa-trash-can text-xs"></i></button>`
@@ -1685,14 +1734,10 @@
     }
 
     async function submitGameComment() {
-      const playerId = document.getElementById('game-comment-player-select').value;
+      const playerId = document.getElementById('game-comment-player-select').value || null;
       const textInput = document.getElementById('game-comment-text');
       const commentText = textInput.value.trim();
 
-      if (!playerId) {
-        showAppWarningModal("コメント者を選択してください。");
-        return;
-      }
       if (!commentText) {
         showAppWarningModal("コメント内容を入力してください。");
         return;
@@ -1777,9 +1822,8 @@
 
     // ランキングカード用アバターHTML (三角のティア表示付き)
     function buildRankAvatarHtml(player, sizePx) {
-      const trigSize = Math.max(4, Math.floor(sizePx * 0.3));
-      const color = getContributionColor(player.matchesCount, player.customTriangleColor);
-      const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
+      const tier = getTierInfo(player.matchesCount, player.customTriangleColor);
+      const tooltip = `${tier.label} (対戦: ${player.matchesCount}回)`;
 
       let avatarImgHtml = "";
       const avatarSrc = getPlayerAvatarSrc(player);
@@ -1794,12 +1838,7 @@
 
       return `
         <div class="relative" title="${tooltip}">
-          <div class="rounded-full border-2 border-white/30 overflow-hidden shadow-lg bg-slate-800" style="width: ${sizePx}px; height: ${sizePx}px;">
-            ${avatarImgHtml}
-          </div>
-          <div class="absolute bottom-0 right-0 triangle-indicator"
-               style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
-          </div>
+          ${renderAvatarRingHtml(sizePx, tier, avatarImgHtml)}
         </div>
       `;
     }
@@ -2043,9 +2082,8 @@
     // アバターHTML作成 of ヘルパー
     function getAvatarElementHtml(player, sizeClassNum) {
       const sizePx = sizeClassNum * 4;
-      const trigSize = Math.max(4, Math.floor(sizePx * 0.35));
-      const color = getContributionColor(player.matchesCount, player.customTriangleColor);
-      const tooltip = getContributionRankName(player.matchesCount) + ` (対戦: ${player.matchesCount}回)`;
+      const tier = getTierInfo(player.matchesCount, player.customTriangleColor);
+      const tooltip = `${tier.label} (対戦: ${player.matchesCount}回)`;
 
       let avatarImgHtml = "";
       const avatarSrc = getPlayerAvatarSrc(player);
@@ -2063,12 +2101,8 @@
       }
 
       return `
-        <div class="relative rounded-full border border-slate-200 overflow-hidden shrink-0 shadow-inner bg-slate-50" style="width: ${sizePx}px; height: ${sizePx}px;" title="${tooltip}">
-          ${avatarImgHtml}
-          <!-- 三角マーク（右下斜めカット） -->
-          <div class="absolute bottom-0 right-0 triangle-indicator"
-               style="width: ${trigSize}px; height: ${trigSize}px; background-color: ${color}; opacity: 0.95;">
-          </div>
+        <div class="relative shrink-0" title="${tooltip}">
+          ${renderAvatarRingHtml(sizePx, tier, avatarImgHtml)}
         </div>
       `;
     }
@@ -2514,12 +2548,18 @@
           const proofThumbHtml = match.proofImage
             ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-14 h-14 object-cover rounded-lg border border-amber-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
             : `<div class="w-14 h-14 rounded-lg border border-dashed border-rose-200 bg-rose-50 flex items-center justify-center text-rose-400 text-[9px] font-bold text-center shrink-0 p-1">証拠なし</div>`;
+          const durationHtml = match.durationMinutes
+            ? `<div class="text-[9px] text-slate-400 font-bold text-center mt-1"><i class="fa-solid fa-hourglass-half mr-0.5"></i>約${match.durationMinutes}分</div>`
+            : '';
           const feedbackHtml = match.feedback && match.feedback.trim() !== ""
             ? `<div class="text-[10px] text-slate-500 bg-white border border-amber-100 rounded-lg p-1.5 mt-1 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${buildExpandableTextHtml(match.feedback, 'pending-feedback-' + match.id)}</div>`
             : '';
           item.innerHTML = `
             <div class="min-w-0 flex-1 flex gap-3 items-start">
-              ${proofThumbHtml}
+              <div class="flex flex-col items-center shrink-0">
+                ${proofThumbHtml}
+                ${durationHtml}
+              </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 mb-1 flex-wrap">
                   <span class="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">戦績申請</span>
@@ -2849,6 +2889,8 @@
       }
 
       const feedbackVal = document.getElementById('match-feedback').value.trim();
+      const durationVal = document.getElementById('match-duration').value.trim();
+      const durationMinutes = durationVal !== "" ? Math.max(0, parseInt(durationVal, 10) || 0) : null;
 
       const newMatch = {
         id: "m_" + Date.now(),
@@ -2858,6 +2900,7 @@
         proofImage: proofUrl,
         status: currentRole === 'admin' ? 'approved' : 'pending',
         feedback: feedbackVal,
+        durationMinutes: durationMinutes,
         createdAt: Date.now()
       };
 
@@ -2880,6 +2923,7 @@
       document.getElementById('match-proof-file').value = "";
       updateMatchProofPreview();
       document.getElementById('match-feedback').value = "";
+      document.getElementById('match-duration').value = "";
 
       const stats = computePlayerStats();
       renderMemberSelection(Object.values(stats));

@@ -104,3 +104,9 @@ create table if not exists page_visits (
 alter table page_visits enable row level security;
 create policy "page_visits_select" on page_visits for select using (true);
 create policy "page_visits_insert" on page_visits for insert with check (true);
+
+-- 追加機能: 戦績申請に「プレイ時間(約●分・任意)」を追加
+alter table matches add column if not exists duration_minutes integer;
+
+-- 追加機能: 「ゲームについてコメントする」の匿名投稿を許可
+alter table game_comments alter column player_id drop not null;
