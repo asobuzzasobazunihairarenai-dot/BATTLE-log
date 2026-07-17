@@ -375,9 +375,13 @@
               </div>
             </div>
 
-            <!-- メインの目玉：総合TOP3 ランキング (フル幅・強調デザイン) -->
-            <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6 space-y-6">
-              <div>
+            <!-- メインの目玉：総合ランキング (フル幅・強調デザイン。2つのランキングを独立したパネルに分離) -->
+            <div class="space-y-4">
+              <!-- 勝率ランキング パネル -->
+              <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
+                <div class="flex justify-center mb-2">
+                  <span class="text-[10px] font-black text-indigo-100 bg-white/15 px-3 py-1 rounded-full uppercase tracking-widest">🏆 勝率部門</span>
+                </div>
                 <div class="flex items-center justify-center gap-2 mb-1">
                   <i class="fa-solid fa-crown text-amber-300 text-lg"></i>
                   <h3 class="text-sm font-black text-white uppercase tracking-widest">勝率TOP3 ランキング</h3>
@@ -393,7 +397,11 @@
                 </div>
               </div>
 
-              <div class="border-t border-white/10 pt-6">
+              <!-- 対戦数ランキング パネル -->
+              <div class="bg-gradient-to-br from-orange-600 via-orange-800 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
+                <div class="flex justify-center mb-2">
+                  <span class="text-[10px] font-black text-orange-100 bg-white/15 px-3 py-1 rounded-full uppercase tracking-widest">🔥 対戦数部門</span>
+                </div>
                 <div class="flex items-center justify-center gap-2 mb-4">
                   <i class="fa-solid fa-fire text-orange-300 text-lg"></i>
                   <h3 class="text-sm font-black text-white uppercase tracking-widest">対戦数ランキング TOP3</h3>
@@ -931,7 +939,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171622";
+    const BUILD_VERSION = "202607171626";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1724,11 +1732,17 @@
     // rankedはselectTopByDenseRankの戻り値。statHtmlFnは代表プレイヤー(同順位内は数値が同じ)を受け取りスタッツHTMLを返す
     function renderRankGroupCards(container, ranked, statHtmlFn) {
       const badgeColors = [
-        "bg-amber-400 text-amber-950 border-yellow-200 shadow-md shadow-amber-500/40",
-        "bg-slate-300 text-slate-800 border-slate-100 shadow-md shadow-slate-400/30",
-        "bg-amber-600 text-white border-amber-400 shadow-md shadow-amber-700/30"
+        "bg-amber-400 text-amber-950 border-yellow-200 shadow-lg shadow-amber-500/50",
+        "bg-slate-300 text-slate-800 border-slate-100 shadow-lg shadow-slate-400/40",
+        "bg-amber-600 text-white border-amber-400 shadow-lg shadow-amber-700/40"
       ];
       const badgeTexts = ["🥇", "🥈", "🥉"];
+      // 順位ごとにカード自体の枠線・背景色も染めて、一目で何位か分かるようにする
+      const cardTierClasses = [
+        "bg-amber-400/10 border-2 border-amber-400/70 shadow-lg shadow-amber-500/20 hover:bg-amber-400/15",
+        "bg-slate-300/10 border-2 border-slate-300/60 shadow-lg shadow-slate-400/10 hover:bg-slate-300/15",
+        "bg-amber-700/10 border-2 border-amber-600/60 shadow-lg shadow-amber-700/10 hover:bg-amber-700/15"
+      ];
 
       const groups = [];
       ranked.forEach(({ item, rank }) => {
@@ -1752,12 +1766,12 @@
         `).join('');
 
         const card = document.createElement('div');
-        card.className = "relative bg-white/10 rounded-2xl p-4 flex flex-col items-center text-center border border-white/10 hover:bg-white/15 transition";
+        card.className = `relative rounded-2xl p-4 flex flex-col items-center text-center transition ${cardTierClasses[idx]}`;
         card.innerHTML = `
-          <div class="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full border-2 border-white/50 flex items-center justify-center text-sm font-black ${badgeColors[idx]} z-10">
+          <div class="absolute -top-5 left-1/2 -translate-x-1/2 w-11 h-11 rounded-full border-2 border-white/60 flex items-center justify-center text-xl font-black ${badgeColors[idx]} z-10">
             ${badgeTexts[idx]}
           </div>
-          <div class="flex flex-wrap items-center justify-center gap-3 mt-3 mb-3 min-h-[88px]">${membersHtml}</div>
+          <div class="flex flex-wrap items-center justify-center gap-3 mt-5 mb-3 min-h-[88px]">${membersHtml}</div>
           <div class="flex gap-2 w-full justify-center">${statHtmlFn(group.players[0])}</div>
         `;
         container.appendChild(card);
