@@ -84,6 +84,13 @@
 
   <main class="max-w-7xl mx-auto p-4 space-y-6">
 
+    <!-- ユドナリウムConnectテストプレイへの導線 -->
+    <a href="https://udonarium-connect.com/?share=jFSCnMvNNqp93pg8PqdmIhfBBZG9WHT88udSPZFlgNcoFHlnZfU14AypGKL5hMVdRkJQMPmJVcU8k1IVw7IhURC5mr7fok8oJVUEbGY4K2HKs_aEbR9SD_pj4mIhYW4H-kJlJvt8xfeCOS-V5xOw3GgdDWtzDnKrLh2vEV_QBD1CuX1tGgDdddHS_fB3nY3_JvsC1k2DH2NhwX2-V5lbDjZt8Q" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg shadow-emerald-600/20 transition">
+      <i class="fa-solid fa-dice-d20"></i>
+      7 SHADES OF S:EVENリメイク（開発中）のユドコネ版をテストプレイする
+      <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+    </a>
+
     <!-- 管理者用の「承認待ち」お知らせバナー -->
     <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-sm fade-in">
       <div class="flex items-center gap-3">
@@ -410,6 +417,7 @@
                   <span class="text-[10px] font-bold text-slate-400">並び順:</span>
                   <!-- 並び替え（ソート機能） -->
                   <select id="players-sort-select" onchange="changePlayersSort()" class="text-[10px] font-bold bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-600 outline-none focus:border-indigo-400">
+                    <option value="borderWinRate">勝率順（ランクインボーダー満足）</option>
                     <option value="name">五十音順</option>
                     <option value="matchesCount">対戦数順</option>
                     <option value="winsCount">勝利数順</option>
@@ -848,7 +856,9 @@
 
     let currentRole = "tester"; // 'tester' | 'admin'
     let memberSortKey = "playCount"; // 'playCount' | 'alphabetical'
-    let playersSortKey = "name"; // 'name' | 'matchesCount' | 'winsCount' | 'winRate' (並び替えキー)
+    let playersSortKey = "borderWinRate"; // 'borderWinRate' | 'name' | 'matchesCount' | 'winsCount' | 'winRate' (並び替えキー)
+    // 勝率ランキングのランクインボーダー(平均対戦数の50%)。renderTop3Rankingで更新され、登録プレイヤー一覧の並び替えでも使う
+    let lastWinRateBorderThreshold = 0;
     let searchQuery = "";
 
     // プレイヤー追加用の一時Base64
@@ -921,7 +931,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171247";
+    const BUILD_VERSION = "202607171605";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1694,6 +1704,7 @@
         ? activePlayers.reduce((sum, p) => sum + p.matchesCount, 0) / activePlayers.length
         : 0;
       const threshold = avgMatches * 0.5;
+      lastWinRateBorderThreshold = threshold;
       lastRankingThresholdInfo = activePlayers.length > 0
         ? `実対戦者の平均対戦数: ${avgMatches.toFixed(1)}回 → 参加基準(ボーダー): ${threshold.toFixed(1)}回を超える対戦数`
         : `まだ対戦データがありません。`;
@@ -1869,7 +1880,18 @@
       container.innerHTML = "";
 
       const sorted = [...approvedStatsList];
-      if (playersSortKey === 'name') {
+      if (playersSortKey === 'borderWinRate') {
+        // ランクインボーダー(平均対戦数の50%超)を満たす人を先に、勝率ランキングと同じ優先順位で並べる
+        sorted.sort((a, b) => {
+          const aQualifies = a.matchesCount > lastWinRateBorderThreshold;
+          const bQualifies = b.matchesCount > lastWinRateBorderThreshold;
+          if (aQualifies !== bQualifies) return aQualifies ? -1 : 1;
+          if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+          if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount;
+          if (b.matchesCount !== a.matchesCount) return b.matchesCount - a.matchesCount;
+          return a.name.localeCompare(b.name, 'ja');
+        });
+      } else if (playersSortKey === 'name') {
         sorted.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
       } else if (playersSortKey === 'matchesCount') {
         sorted.sort((a, b) => {
