@@ -74,3 +74,16 @@ create policy "match_proofs_select" on storage.objects for select
 
 -- 追加修正: 戦績申請に「感想・フィードバック」コメント欄を追加
 alter table matches add column if not exists feedback text default '';
+
+-- 追加機能: プレイヤー単位の「ゲームについてのコメント」(特定の戦績とは無関係な感想・フィードバック)
+create table if not exists game_comments (
+  id text primary key,
+  player_id text not null,
+  comment text not null,
+  created_at bigint not null
+);
+alter table game_comments enable row level security;
+create policy "game_comments_select" on game_comments for select using (true);
+create policy "game_comments_insert" on game_comments for insert with check (true);
+create policy "game_comments_delete" on game_comments for delete using (true);
+alter publication supabase_realtime add table game_comments;

@@ -278,6 +278,51 @@
           </div>
         </section>
 
+        <!-- ③ 過去の戦績履歴 (参加者含め全員に公開。デフォルトは折りたたみ表示) -->
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5">
+          <button type="button" onclick="toggleCollapsible('match-history-body','match-history-chevron')" class="w-full flex justify-between items-center pb-2.5 text-left">
+            <h2 class="font-bold text-md text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i>
+              過去の戦績履歴
+            </h2>
+            <i id="match-history-chevron" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform"></i>
+          </button>
+          <div id="match-history-body" class="hidden pt-1 border-t border-gray-100">
+            <div id="match-history-container" class="space-y-3 max-h-[500px] overflow-y-auto pr-1 mt-2">
+              <!-- JSで動的構築 -->
+            </div>
+          </div>
+        </section>
+
+        <!-- ④ ゲームについてコメントする (戦績とは無関係な、プレイヤー単位の感想・フィードバック。デフォルトは折りたたみ表示) -->
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5">
+          <button type="button" onclick="toggleCollapsible('game-comments-body','game-comments-chevron')" class="w-full flex justify-between items-center pb-2.5 text-left">
+            <h2 class="font-bold text-md text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-comments text-indigo-600"></i>
+              ゲームについてコメントする
+            </h2>
+            <i id="game-comments-chevron" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform"></i>
+          </button>
+          <div id="game-comments-body" class="hidden space-y-3 pt-2 border-t border-gray-100">
+            <div>
+              <label class="block text-xs font-bold text-gray-500 mb-1">コメント者</label>
+              <select id="game-comment-player-select" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400">
+                <!-- JSで動的構築 -->
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 mb-1">コメント内容</label>
+              <textarea id="game-comment-text" rows="3" placeholder="ゲーム全体についての感想やフィードバックを書いてください。" class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-indigo-400 resize-none"></textarea>
+            </div>
+            <button type="button" onclick="submitGameComment()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-xl text-xs transition shadow-lg shadow-indigo-600/10">
+              コメントを投稿する
+            </button>
+            <div id="game-comments-container" class="space-y-2 max-h-[400px] overflow-y-auto pr-1 pt-1">
+              <!-- JSで動的構築 -->
+            </div>
+          </div>
+        </section>
+
       </div>
 
       <!-- 右側: メインダッシュボード (ランキング＆戦績表) -->
@@ -365,17 +410,6 @@
 
           </div>
         </div>
-
-        <!-- 過去の戦績履歴 (参加者含め全員に公開) -->
-        <section class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5">
-          <h2 class="font-bold text-lg text-slate-800 flex items-center gap-2 border-b pb-3 border-gray-100 mb-3">
-            <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i>
-            過去の戦績履歴
-          </h2>
-          <div id="match-history-container" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-            <!-- JSで動的構築 -->
-          </div>
-        </section>
 
         <!-- ③ 承認管理 ＆ 履歴タブ (管理者用に表示。起動時は確実に非表示にするためhiddenを初期付与) -->
         <section id="admin-section" class="hidden bg-white rounded-2xl shadow-sm border border-gray-200/80 p-5 space-y-6">
@@ -822,6 +856,7 @@
     // アプリ状態
     let players = [];
     let matches = [];
+    let gameComments = [];
 
     // --- ボードの日時を更新する関数の定義 (消失していた不具合を完全に修正) ---
     function updateBoardDateTime() {
@@ -835,7 +870,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171049";
+    const BUILD_VERSION = "202607171110";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1032,6 +1067,32 @@
       };
     }
 
+    // 戦績とは無関係な、プレイヤー単位の「ゲームについてのコメント」
+    function rowToGameComment(row) {
+      return {
+        id: row.id,
+        playerId: row.player_id,
+        comment: row.comment,
+        createdAt: Number(row.created_at)
+      };
+    }
+    function gameCommentToRow(c) {
+      return {
+        id: c.id,
+        player_id: c.playerId,
+        comment: c.comment,
+        created_at: c.createdAt
+      };
+    }
+    async function loadGameCommentsFromDB() {
+      const { data, error } = await supabaseClient.from('game_comments').select('*').order('created_at', { ascending: false });
+      if (error) {
+        logDebugEntry(error);
+        return;
+      }
+      gameComments = data.map(rowToGameComment);
+    }
+
     // 貼り付け/アップロードされた画像(dataURL)をSupabase Storageにアップロードして公開URLを返す
     async function uploadImageToStorage(dataUrl, bucket) {
       if (!dataUrl) return "";
@@ -1100,7 +1161,7 @@
 
     async function loadData() {
       await seedInitialDataIfEmpty();
-      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB()]);
+      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB(), loadGameCommentsFromDB()]);
     }
 
     function executeAppConfirm() {
@@ -1329,6 +1390,8 @@
 
       renderAdminConsole();
       renderPublicMatchHistory();
+      renderGameCommentPlayerSelect();
+      renderGameComments();
       updatePendingBanner();
 
       const totalApprovedMatches = matches.filter(m => m.status === 'approved').length;
@@ -1351,7 +1414,12 @@
 
       approvedList.forEach(match => {
         const winner = players.find(p => p.id === match.winnerId);
-        const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(" / ");
+        const memberChipsHtml = match.members.map(mid => {
+          const mp = players.find(p => p.id === mid);
+          const name = mp ? mp.name : "不明";
+          const avatarHtml = mp ? getAvatarElementHtml(mp, 5) : '';
+          return `<span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5">${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${name}</span></span>`;
+        }).join(' ');
 
         const proofThumbHtml = match.proofImage
           ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
@@ -1370,12 +1438,112 @@
               <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
               <span class="text-xs text-amber-700 font-bold">👑 ${winner ? winner.name : "不明"}</span>
             </div>
-            <div class="text-xs text-slate-700 truncate"><span class="font-bold">参加:</span> ${membersNames}</div>
+            <div class="flex items-center gap-1 flex-wrap">${memberChipsHtml}</div>
             ${feedbackHtml}
           </div>
         `;
         container.appendChild(item);
       });
+    }
+
+    // 「コメント者」選択プルダウンの構築 (承認済みプレイヤーを五十音順で表示)
+    function renderGameCommentPlayerSelect() {
+      const select = document.getElementById('game-comment-player-select');
+      if (!select) return;
+      const previousValue = select.value;
+      const approvedPlayers = players.filter(p => p.status === 'approved').sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      select.innerHTML = approvedPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      if (approvedPlayers.some(p => p.id === previousValue)) {
+        select.value = previousValue;
+      }
+    }
+
+    // ゲームについてのコメント一覧の構築 (新しい順。削除は管理者のみ)
+    function renderGameComments() {
+      const container = document.getElementById('game-comments-container');
+      if (!container) return;
+      container.innerHTML = "";
+
+      if (gameComments.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-4">まだコメントはありません。</p>`;
+        return;
+      }
+
+      gameComments.forEach(c => {
+        const author = players.find(p => p.id === c.playerId);
+        const authorName = author ? author.name : "不明なプレイヤー";
+        const time = new Date(c.createdAt).toLocaleString('ja-JP');
+        const deleteBtnHtml = currentRole === 'admin'
+          ? `<button onclick="triggerDeleteGameCommentConfirm('${c.id}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="コメントを削除"><i class="fa-solid fa-trash-can text-xs"></i></button>`
+          : '';
+
+        const item = document.createElement('div');
+        item.className = "bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex justify-between items-start gap-2";
+        item.innerHTML = `
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+              <span class="text-xs font-bold text-slate-700">${authorName}</span>
+              <span class="text-[9px] text-slate-400 font-mono">${time}</span>
+            </div>
+            <p class="text-xs text-slate-600 whitespace-pre-wrap break-words">${c.comment}</p>
+          </div>
+          ${deleteBtnHtml}
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    async function submitGameComment() {
+      const playerId = document.getElementById('game-comment-player-select').value;
+      const textInput = document.getElementById('game-comment-text');
+      const commentText = textInput.value.trim();
+
+      if (!playerId) {
+        showAppWarningModal("コメント者を選択してください。");
+        return;
+      }
+      if (!commentText) {
+        showAppWarningModal("コメント内容を入力してください。");
+        return;
+      }
+
+      const newComment = {
+        id: "c_" + Date.now(),
+        playerId: playerId,
+        comment: commentText,
+        createdAt: Date.now()
+      };
+
+      const { error } = await supabaseClient.from('game_comments').insert(gameCommentToRow(newComment));
+      if (error) {
+        logDebugEntry(error);
+        showAppWarningModal("コメントの投稿に失敗しました。通信環境を確認してください。");
+        return;
+      }
+
+      await loadGameCommentsFromDB();
+      renderGameComments();
+      textInput.value = "";
+      showToast("コメントを投稿しました。");
+    }
+
+    function triggerDeleteGameCommentConfirm(commentId) {
+      showAppConfirmModal(
+        "コメントの削除",
+        "このコメントを削除しますか？",
+        true,
+        async function() {
+          const { error } = await supabaseClient.from('game_comments').delete().eq('id', commentId);
+          if (error) {
+            logDebugEntry(error);
+            showAppWarningModal("削除処理に失敗しました。通信環境を確認してください。");
+            return;
+          }
+          await loadGameCommentsFromDB();
+          renderGameComments();
+          showToast("コメントを削除しました。");
+        }
+      );
     }
 
     // アバターゲット用の汎用ヘルパー (編集申請中[editPending]があればそちらのアバターを優先して取り出す)
@@ -2671,6 +2839,14 @@
           if (payload.new && payload.new.admin_password) {
             adminPassword = payload.new.admin_password;
           }
+        })
+        .subscribe();
+
+      supabaseClient
+        .channel('public:game_comments-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_comments' }, async () => {
+          await loadGameCommentsFromDB();
+          renderGameComments();
         })
         .subscribe();
     }
