@@ -904,14 +904,6 @@
       { id: "p30", name: "ヤマダ", discordId: "", avatar: "", customTriangleColor: "", status: "approved" }
     ];
 
-    // デフォルト対戦履歴データ
-    const defaultMatches = [
-      { id: "m1", date: "2026-07-15", members: ["p1"], winnerId: "p1", status: "approved", createdAt: 1715760000000 },
-      { id: "m2", date: "2026-07-15", members: ["p2", "p3"], winnerId: "p2", status: "approved", createdAt: 1715760100000 },
-      { id: "m3", date: "2026-07-15", members: ["p3", "p2", "p18"], winnerId: "p3", status: "approved", createdAt: 1715760200000 },
-      { id: "m4", date: "2026-07-15", members: ["p8", "p9", "p10"], winnerId: "p9", status: "pending", createdAt: 1715760300000 }
-    ];
-
     // アプリ状態
     let players = [];
     let matches = [];
@@ -929,7 +921,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171231";
+    const BUILD_VERSION = "202607171247";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1006,11 +998,11 @@
 
       if (type === 'matchcount') {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>対戦数ランキングについて`;
-        descEl.innerHTML = `対戦数ランキングには<b>参加基準はありません</b>。承認された戦績の中で、単純に対戦数が多い順にランクインします。`;
+        descEl.innerHTML = `対戦数ランキングには<b>参加基準はありません</b>。承認された戦績の中で、単純に対戦数が多い順にランクインします。<br><br><b>同順位の決め方:</b> ①対戦数 → ②勝利数 → ③勝率 の順で比較し、すべて同じ場合は同順位として併記します。`;
         detailEl.classList.add('hidden');
       } else {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>勝率ランキングについて`;
-        descEl.innerHTML = `勝率TOP3ランキングは、対戦経験が極端に少ないプレイヤーが数試合だけで上位に入ってしまわないように、<b>実際に対戦したことがあるプレイヤーの「平均対戦数」の50%を超える対戦数のプレイヤーのみ</b>が対象になります。`;
+        descEl.innerHTML = `勝率TOP3ランキングは、対戦経験が極端に少ないプレイヤーが数試合だけで上位に入ってしまわないように、<b>実際に対戦したことがあるプレイヤーの「平均対戦数」の50%を超える対戦数のプレイヤーのみ</b>が対象になります。<br><br><b>同順位の決め方:</b> ①勝率 → ②勝利数 → ③対戦数 の順で比較し、すべて同じ場合は同順位として併記します。`;
         detailEl.classList.remove('hidden');
         detailEl.innerText = lastRankingThresholdInfo;
       }
@@ -1234,15 +1226,11 @@
       adminPassword = data.admin_password;
     }
 
-    // 初回アクセス時のみ: DBが空だった場合にテスト用の初期データを流し込む
+    // 初回アクセス時のみ: プレイヤーが空だった場合に初期メンバーを流し込む(戦績はデモデータを入れず空のままにする)
     async function seedInitialDataIfEmpty() {
       const { count: playerCount } = await supabaseClient.from('players').select('*', { count: 'exact', head: true });
       if (!playerCount) {
         await supabaseClient.from('players').insert(defaultPlayers.map(playerToRow));
-      }
-      const { count: matchCount } = await supabaseClient.from('matches').select('*', { count: 'exact', head: true });
-      if (!matchCount) {
-        await supabaseClient.from('matches').insert(defaultMatches.map(matchToRow));
       }
     }
 
@@ -1676,6 +1664,23 @@
     // 勝率ランキングの参加基準(平均対戦数の50%)を、ランキング説明モーダル用に保持しておく
     let lastRankingThresholdInfo = "";
 
+    // 同順位(すべてのタイブレーク指標が一致)の場合は同じ順位として併記するためのヘルパー
+    // isEqualFn(a, b) が true を返す間は同じ順位が続き、maxRankを超えた時点で打ち切る
+    function selectTopByDenseRank(sortedList, isEqualFn, maxRank) {
+      const output = [];
+      let rank = 0;
+      let prev = null;
+      for (const item of sortedList) {
+        if (prev === null || !isEqualFn(item, prev)) {
+          rank += 1;
+        }
+        if (rank > maxRank) break;
+        output.push({ item, rank });
+        prev = item;
+      }
+      return output;
+    }
+
     function renderTop3Ranking(approvedStatsList) {
       const container = document.getElementById('top3-ranking-container');
       container.innerHTML = "";
@@ -1690,28 +1695,35 @@
         : 0;
       const threshold = avgMatches * 0.5;
       lastRankingThresholdInfo = activePlayers.length > 0
-        ? `実対戦者の平均対戦数: ${avgMatches.toFixed(1)}回 → 参加基準: ${threshold.toFixed(1)}回を超える対戦数`
+        ? `実対戦者の平均対戦数: ${avgMatches.toFixed(1)}回 → 参加基準(ボーダー): ${threshold.toFixed(1)}回を超える対戦数`
         : `まだ対戦データがありません。`;
 
       const avgLabelEl = document.getElementById('ranking-avg-label');
       if (avgLabelEl) {
-        avgLabelEl.innerText = activePlayers.length > 0 ? `(参加者平均: ${avgMatches.toFixed(1)}回)` : '';
+        avgLabelEl.innerText = activePlayers.length > 0
+          ? `(参加者平均: ${avgMatches.toFixed(1)}回 / ランクインボーダー: ${threshold.toFixed(1)}回超)`
+          : '';
       }
 
+      // 順位: 勝率 → 勝利数 → 対戦数 の順で比較し、すべて同じなら同順位として併記する
       const sorted = [...rankableStatsList].sort((a, b) => {
         if (b.winRate !== a.winRate) return b.winRate - a.winRate;
         if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount;
         return b.matchesCount - a.matchesCount;
       });
 
-      const top3 = sorted.filter(p => p.matchesCount > threshold).slice(0, 3);
+      const eligible = sorted.filter(p => p.matchesCount > threshold);
+      const ranked = selectTopByDenseRank(eligible, (a, b) =>
+        a.winRate === b.winRate && a.winsCount === b.winsCount && a.matchesCount === b.matchesCount
+      , 3);
 
-      if (top3.length === 0) {
+      if (ranked.length === 0) {
         container.innerHTML = `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">参加基準(平均対戦数の50%超)を満たすプレイヤーがまだいません。</p>`;
         return;
       }
 
-      top3.forEach((player, idx) => {
+      ranked.forEach(({ item: player, rank }) => {
+        const idx = rank - 1;
         const badgeColors = [
           "bg-amber-400 text-amber-950 border-yellow-200 shadow-md shadow-amber-500/40",
           "bg-slate-300 text-slate-800 border-slate-100 shadow-md shadow-slate-400/30",
@@ -1775,20 +1787,25 @@
       if (!container) return;
       container.innerHTML = "";
 
-      // 運営枠(isStaff)はランキング対象外
+      // 運営枠(isStaff)はランキング対象外。順位: 対戦数 → 勝利数 → 勝率 の順で比較し、すべて同じなら同順位として併記する
       const sorted = [...approvedStatsList].filter(p => !p.isStaff).sort((a, b) => {
         if (b.matchesCount !== a.matchesCount) return b.matchesCount - a.matchesCount;
+        if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount;
         return b.winRate - a.winRate;
       });
 
-      const top3 = sorted.filter(p => p.matchesCount > 0).slice(0, 3);
+      const eligible = sorted.filter(p => p.matchesCount > 0);
+      const ranked = selectTopByDenseRank(eligible, (a, b) =>
+        a.matchesCount === b.matchesCount && a.winsCount === b.winsCount && a.winRate === b.winRate
+      , 3);
 
-      if (top3.length === 0) {
+      if (ranked.length === 0) {
         container.innerHTML = `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">承認済みの対戦データがまだありません。</p>`;
         return;
       }
 
-      top3.forEach((player, idx) => {
+      ranked.forEach(({ item: player, rank }) => {
+        const idx = rank - 1;
         const badgeColors = [
           "bg-amber-400 text-amber-950 border-yellow-200 shadow-md shadow-amber-500/40",
           "bg-slate-300 text-slate-800 border-slate-100 shadow-md shadow-slate-400/30",
@@ -2198,7 +2215,7 @@
     function triggerResetConfirmModal() {
       showAppConfirmModal(
         "データの初期化確認",
-        "データをテスト用の初期状態に戻してもよろしいですか？（現在のすべての追加プレイヤーと戦績がリセットされます）",
+        "データをテスト用の初期状態に戻してもよろしいですか？（現在のすべての追加プレイヤーと戦績がリセットされ、戦績は0件になります）",
         false, // 通常の警告(黄ボタン)
         async function() {
           const { error: delPlayersErr } = await supabaseClient.from('players').delete().neq('id', '__none__');
@@ -2209,7 +2226,6 @@
             return;
           }
           await supabaseClient.from('players').insert(defaultPlayers.map(playerToRow));
-          await supabaseClient.from('matches').insert(defaultMatches.map(matchToRow));
           await Promise.all([loadPlayersFromDB(), loadMatchesFromDB()]);
           renderAll();
           showToast("データを初期状態にリセットしました。(全員のブラウザに反映されます)");
