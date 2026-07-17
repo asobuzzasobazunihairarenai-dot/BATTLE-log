@@ -371,12 +371,15 @@
             <!-- メインの目玉：総合TOP3 ランキング (フル幅・強調デザイン) -->
             <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6 space-y-6">
               <div>
-                <div class="flex items-center justify-center gap-2 mb-4">
+                <div class="flex items-center justify-center gap-2 mb-1">
                   <i class="fa-solid fa-crown text-amber-300 text-lg"></i>
                   <h3 class="text-sm font-black text-white uppercase tracking-widest">勝率TOP3 ランキング</h3>
                   <button onclick="openRankingInfoModal('winrate')" class="text-white/60 hover:text-white transition" title="ランキング参加条件について">
                     <i class="fa-solid fa-circle-info"></i>
                   </button>
+                </div>
+                <div class="text-center mb-4">
+                  <span id="ranking-avg-label" class="text-[10px] text-white/40 font-mono"></span>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="top3-ranking-container">
                   <!-- JSで動的構築 -->
@@ -645,6 +648,14 @@
           <label class="block text-[10px] font-bold text-gray-400 mb-1">または手動でファイルからアップロード</label>
           <input type="file" id="edit-player-avatar-file" onchange="updateEditAvatarFromFile()" accept="image/*" class="w-full text-[10px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
         </div>
+      </div>
+
+      <!-- 運営枠チェックボックス (管理者時のみ表示するようにJSで制御) -->
+      <div id="edit-player-staff-row" class="hidden border-t border-dashed border-gray-100 pt-3">
+        <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+          <input type="checkbox" id="edit-player-is-staff" class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 border-gray-300">
+          運営枠にする(ランキングの集計対象から除外されます)
+        </label>
       </div>
 
       <div class="flex justify-between items-center pt-3 border-t">
@@ -918,7 +929,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171200";
+    const BUILD_VERSION = "202607171231";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1100,7 +1111,8 @@
         status: row.status,
         editPending: row.edit_pending || null,
         seedMatchesCount: row.seed_matches_count || 0,
-        seedWinsCount: row.seed_wins_count || 0
+        seedWinsCount: row.seed_wins_count || 0,
+        isStaff: row.is_staff || false
       };
     }
     function playerToRow(p) {
@@ -1113,7 +1125,8 @@
         status: p.status,
         edit_pending: p.editPending || null,
         seed_matches_count: p.seedMatchesCount || 0,
-        seed_wins_count: p.seedWinsCount || 0
+        seed_wins_count: p.seedWinsCount || 0,
+        is_staff: p.isStaff || false
       };
     }
     function rowToMatch(row) {
@@ -1384,6 +1397,7 @@
           matchesCount: p.seedMatchesCount || 0,
           winsCount: p.seedWinsCount || 0,
           winRate: 0,
+          isStaff: p.isStaff || false,
           // プロフィール編集の申請データ(editPending)をここに格納してレンダリングに渡す
           editPending: p.editPending || null
         };
@@ -1666,8 +1680,11 @@
       const container = document.getElementById('top3-ranking-container');
       container.innerHTML = "";
 
+      // 運営枠(isStaff)はランキング集計・平均対戦数の算出対象から除外する
+      const rankableStatsList = approvedStatsList.filter(p => !p.isStaff);
+
       // 実際に対戦したことがあるプレイヤーだけで平均対戦数を算出し、その50%を参加基準にする
-      const activePlayers = approvedStatsList.filter(p => p.matchesCount > 0);
+      const activePlayers = rankableStatsList.filter(p => p.matchesCount > 0);
       const avgMatches = activePlayers.length > 0
         ? activePlayers.reduce((sum, p) => sum + p.matchesCount, 0) / activePlayers.length
         : 0;
@@ -1676,7 +1693,12 @@
         ? `実対戦者の平均対戦数: ${avgMatches.toFixed(1)}回 → 参加基準: ${threshold.toFixed(1)}回を超える対戦数`
         : `まだ対戦データがありません。`;
 
-      const sorted = [...approvedStatsList].sort((a, b) => {
+      const avgLabelEl = document.getElementById('ranking-avg-label');
+      if (avgLabelEl) {
+        avgLabelEl.innerText = activePlayers.length > 0 ? `(参加者平均: ${avgMatches.toFixed(1)}回)` : '';
+      }
+
+      const sorted = [...rankableStatsList].sort((a, b) => {
         if (b.winRate !== a.winRate) return b.winRate - a.winRate;
         if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount;
         return b.matchesCount - a.matchesCount;
@@ -1753,7 +1775,8 @@
       if (!container) return;
       container.innerHTML = "";
 
-      const sorted = [...approvedStatsList].sort((a, b) => {
+      // 運営枠(isStaff)はランキング対象外
+      const sorted = [...approvedStatsList].filter(p => !p.isStaff).sort((a, b) => {
         if (b.matchesCount !== a.matchesCount) return b.matchesCount - a.matchesCount;
         return b.winRate - a.winRate;
       });
@@ -2009,13 +2032,17 @@
 
       updateEditAvatarPreview();
 
-      // 管理者ロールの時のみ、編集モーダル内に「プレイヤー削除」ボタンを表示する
+      // 管理者ロールの時のみ、編集モーダル内に「プレイヤー削除」ボタンと運営枠チェックボックスを表示する
       const deleteBtn = document.getElementById('edit-player-delete-btn');
+      const staffRow = document.getElementById('edit-player-staff-row');
+      document.getElementById('edit-player-is-staff').checked = player.isStaff || false;
       if (currentRole === 'admin') {
         deleteBtn.classList.remove('hidden');
+        staffRow.classList.remove('hidden');
         document.getElementById('player-edit-submit-btn-text').innerText = "変更を保存する (即時反映)";
       } else {
         deleteBtn.classList.add('hidden');
+        staffRow.classList.add('hidden');
         document.getElementById('player-edit-submit-btn-text').innerText = "変更を申請する (承認待ち)";
       }
 
@@ -2108,12 +2135,14 @@
       }
 
       if (currentRole === 'admin') {
-        // 管理者：即時適用
+        // 管理者：即時適用 (運営枠フラグも管理者のみ変更可能)
+        const isStaff = document.getElementById('edit-player-is-staff').checked;
         const { error } = await supabaseClient.from('players').update({
           name: name,
           discord_id: discordId,
           avatar_url: finalAvatar,
-          edit_pending: null
+          edit_pending: null,
+          is_staff: isStaff
         }).eq('id', id);
         if (error) {
           logDebugEntry(error);

@@ -91,3 +91,6 @@ alter publication supabase_realtime add table game_comments;
 -- 追加機能: 公開前の初期戦績(ベース値)をプレイヤーごとに設定できるようにする
 alter table players add column if not exists seed_matches_count integer not null default 0;
 alter table players add column if not exists seed_wins_count integer not null default 0;
+
+-- 追加機能: 運営枠(ランキング集計から除外するプレイヤー)の設定
+alter table players add column if not exists is_staff boolean not null default false;
