@@ -931,7 +931,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171614";
+    const BUILD_VERSION = "202607171622";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1757,7 +1757,7 @@
           <div class="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full border-2 border-white/50 flex items-center justify-center text-sm font-black ${badgeColors[idx]} z-10">
             ${badgeTexts[idx]}
           </div>
-          <div class="flex flex-wrap justify-center gap-3 mt-3 mb-3">${membersHtml}</div>
+          <div class="flex flex-wrap items-center justify-center gap-3 mt-3 mb-3 min-h-[88px]">${membersHtml}</div>
           <div class="flex gap-2 w-full justify-center">${statHtmlFn(group.players[0])}</div>
         `;
         container.appendChild(card);
