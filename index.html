@@ -348,13 +348,9 @@
               <span class="text-xs font-bold text-slate-600">現在リアルタイムで同期中</span>
             </div>
             <div class="flex gap-2 w-full sm:w-auto">
-              <!-- PNG保存ボタン -->
+              <!-- PNG保存ボタン (ランキングとプレイヤー一覧の2枚に分けて出力) -->
               <button type="button" onclick="exportDashboardToPNG()" class="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-xl shadow-lg shadow-emerald-600/10 transition flex items-center justify-center gap-2">
-                <i class="fa-solid fa-file-image"></i> Discord共有用PNGをダウンロード
-              </button>
-              <!-- スクショ最適化トグル -->
-              <button type="button" id="optimize-mode-btn" onclick="toggleOptimizeMode()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5" title="画像以外のコントロールを完全に非表示にします">
-                <i class="fa-solid fa-expand"></i> スクショ最適化
+                <i class="fa-solid fa-file-image"></i> スクショ画像出力
               </button>
             </div>
           </div>
@@ -376,7 +372,7 @@
             </div>
 
             <!-- メインの目玉：総合ランキング (フル幅・強調デザイン。2つのランキングを独立したパネルに分離) -->
-            <div class="space-y-4">
+            <div class="space-y-4" id="ranking-capture-section">
               <!-- 勝率ランキング パネル -->
               <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
                 <div class="flex justify-center mb-2">
@@ -416,7 +412,7 @@
             </div>
 
             <!-- 登録プレイヤー戦績一覧 (フル幅) -->
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4" id="players-capture-section">
               <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 pb-2 border-b border-gray-100">
                 <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                   <i class="fa-solid fa-users text-indigo-500"></i> 登録プレイヤー戦績一覧
@@ -939,7 +935,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607171648";
+    const BUILD_VERSION = "202607171703";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -2984,56 +2980,10 @@
       }
     }
 
-    let isOptimizeMode = false;
-    function toggleOptimizeMode() {
-      isOptimizeMode = !isOptimizeMode;
-      const optimizeBtn = document.getElementById('optimize-mode-btn');
-
-      if (isOptimizeMode) {
-        optimizeBtn.innerHTML = `<i class="fa-solid fa-compress"></i> 編集モードに戻る`;
-        optimizeBtn.className = "bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5";
-
-        document.querySelector('header').classList.add('hidden');
-        document.querySelector('footer').classList.add('hidden');
-        document.querySelector('.lg\\:col-span-4').classList.add('hidden');
-        document.getElementById('admin-section').classList.add('hidden');
-        document.getElementById('pending-banner').classList.add('hidden');
-
-        document.querySelector('.grid').className = "grid grid-cols-1 gap-6 max-w-4xl mx-auto";
-        showToast("スクショ最適化モードになりました。[ESC]を押すか、ボタンから元に戻れます。");
-      } else {
-        restoreNormalMode();
-      }
-    }
-
-    window.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && isOptimizeMode) {
-        restoreNormalMode();
-      }
-    });
-
-    function restoreNormalMode() {
-      isOptimizeMode = false;
-      const optimizeBtn = document.getElementById('optimize-mode-btn');
-      optimizeBtn.className = "bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl transition flex items-center gap-1.5";
-      optimizeBtn.innerHTML = `<i class="fa-solid fa-expand"></i> スクショ最適化`;
-
-      document.querySelector('header').classList.remove('hidden');
-      document.querySelector('footer').classList.remove('hidden');
-      document.querySelector('.lg\\:col-span-4').classList.remove('hidden');
-      updatePendingBanner();
-      if (currentRole === 'admin') {
-        document.getElementById('admin-section').classList.remove('hidden');
-      }
-
-      document.querySelector('.grid').className = "grid grid-cols-1 lg:grid-cols-12 gap-6";
-    }
-
-    // --- 【超強力】画像が絶対につぶれない & 全員写る＆文字欠けしないPNGダウンロード機能 ---
-    function exportDashboardToPNG() {
-      showToast("撮影用に最適化中... しばらくお待ちください。");
-
-      const target = document.getElementById('dashboard-capture');
+    // 指定した1セクションをPNG画像として保存する共通ヘルパー
+    function captureSectionToPng(targetId, fileSuffix) {
+      const target = document.getElementById(targetId);
+      if (!target) return Promise.resolve();
 
       const options = {
         scale: 2,
@@ -3048,9 +2998,9 @@
             clonedGrid.style.overflowY = 'visible';
             clonedGrid.classList.remove('max-h-[500px]', 'overflow-y-auto');
           }
-          const clonedCapture = clonedDoc.getElementById('dashboard-capture');
-          if (clonedCapture) {
-            clonedCapture.style.width = '1200px';
+          const clonedTarget = clonedDoc.getElementById(targetId);
+          if (clonedTarget) {
+            clonedTarget.style.width = '1200px';
           }
           const truncates = clonedDoc.querySelectorAll('.truncate');
           truncates.forEach(el => {
@@ -3062,27 +3012,31 @@
         }
       };
 
-      setTimeout(() => {
-        html2canvas(target, options).then(canvas => {
-          try {
-            const imgData = canvas.toDataURL('image/png');
-            const link = document.createElement('a');
-            const d = new Date();
-            const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+      return html2canvas(target, options).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        const d = new Date();
+        const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 
-            link.download = `7shades_stats_${dateStr}.png`;
-            link.href = imgData;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+        link.download = `7shades_${fileSuffix}_${dateStr}.png`;
+        link.href = imgData;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+    }
 
-            showToast("高画質PNG画像の保存に成功しました！");
-          } catch (err) {
-            logDebugEntry(err);
-            alert("画像生成中にエラーが発生しました。");
-          }
-        });
-      }, 250);
+    // 「①ランキング」「②登録プレイヤー戦績一覧」の2枚に分けてPNG画像を出力する
+    async function exportDashboardToPNG() {
+      showToast("撮影用に画像を生成中... しばらくお待ちください。");
+      try {
+        await captureSectionToPng('ranking-capture-section', 'ranking');
+        await captureSectionToPng('players-capture-section', 'players');
+        showToast("2枚のPNG画像を保存しました！");
+      } catch (err) {
+        logDebugEntry(err);
+        showAppWarningModal("画像生成中にエラーが発生しました。");
+      }
     }
 
     function exportToCSV() {
