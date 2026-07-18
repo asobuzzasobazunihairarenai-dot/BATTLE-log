@@ -13,6 +13,17 @@
   <!-- Supabase (複数人でのデータ共有バックエンド) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
+    /* 直近ニュースティッカー: トラック内でコンテンツを2セット並べ、-50%までスクロールして継ぎ目なくループさせる */
+    @keyframes news-ticker-scroll {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+    .news-ticker-scroll {
+      animation: news-ticker-scroll 25s linear infinite;
+    }
+    .news-ticker-scroll:hover {
+      animation-play-state: paused;
+    }
     /* 対戦数15回以降のアバター丸枠(虹色グラデーション)をゆっくり回転させる */
     @keyframes rainbow-ring-spin {
       to { transform: rotate(360deg); }
@@ -84,6 +95,13 @@
       </div>
     </div>
   </header>
+
+  <!-- 直近ニュースティッカー (直近コメント・戦績・登録者・管理者ニュースを右から左に流す) -->
+  <div class="bg-black text-white overflow-hidden whitespace-nowrap border-b border-slate-800 py-2" id="news-ticker-bar">
+    <div id="news-ticker-track" class="inline-flex items-center gap-10 news-ticker-scroll">
+      <!-- JSで動的構築 -->
+    </div>
+  </div>
 
   <main class="max-w-7xl mx-auto p-4 space-y-6">
 
@@ -565,6 +583,32 @@
             </div>
           </div>
 
+          <!-- 表示設定セクション -->
+          <div class="border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-sliders text-indigo-600"></i> 表示設定
+            </h3>
+            <label class="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg p-2.5 cursor-pointer">
+              <span class="text-xs font-bold text-slate-600"><i class="fa-solid fa-circle-play text-indigo-500 mr-1.5"></i>戦績申請後に「承認シミュレーターの案内」を表示する</span>
+              <input type="checkbox" id="show-approval-simulator-toggle" onchange="saveShowApprovalSimulator()" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-gray-300">
+            </label>
+          </div>
+
+          <!-- 管理者ニュース投稿セクション -->
+          <div class="border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-bullhorn text-indigo-600"></i> 管理者からのニュース投稿
+            </h3>
+            <p class="text-[10px] text-slate-400 mb-2.5 leading-relaxed">投稿すると、ページ上部のニュースティッカーに流れます。</p>
+            <div class="flex gap-2 mb-3">
+              <input type="text" id="admin-news-text" placeholder="お知らせ内容を入力..." class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400">
+              <button type="button" onclick="postAdminNews()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3.5 rounded-lg shrink-0">投稿する</button>
+            </div>
+            <div id="admin-news-list" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+              <!-- JSで動的に構築 -->
+            </div>
+          </div>
+
           <!-- メール通知設定セクション -->
           <div class="border-t border-dashed border-gray-100 pt-5">
             <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
@@ -965,6 +1009,12 @@
     // 管理者認証用パスワード (Supabaseのapp_settingsテーブルで全員に共有される。初期値は0000)
     let adminPassword = "0000";
 
+    // 承認シミュレーター案内ポップアップの表示可否 (Supabaseのapp_settingsで全員に共有)
+    let showApprovalSimulator = true;
+
+    // ニュースティッカー用: 直近のお知らせ(管理者投稿)
+    let adminNewsList = [];
+
     // カラーパレット (仮アバター生成用)
     const avatarBgColors = [
       '#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245',
@@ -1022,7 +1072,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607180150";
+    const BUILD_VERSION = "202607180938";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1396,6 +1446,18 @@
       showToast("通知設定を保存しました。");
     }
 
+    async function saveShowApprovalSimulator() {
+      const checked = document.getElementById('show-approval-simulator-toggle').checked;
+      const { error } = await supabaseClient.from('app_settings').update({ show_approval_simulator: checked }).eq('id', 1);
+      if (error) {
+        logDebugEntry(error);
+        showAppWarningModal("設定の保存に失敗しました。通信環境を確認してください。");
+        return;
+      }
+      showApprovalSimulator = checked;
+      showToast("表示設定を保存しました。");
+    }
+
     // 貼り付け/アップロードされた画像(dataURL)をSupabase Storageにアップロードして公開URLを返す
     async function uploadImageToStorage(dataUrl, bucket) {
       if (!dataUrl) return "";
@@ -1442,12 +1504,22 @@
     }
 
     async function loadAdminPasswordFromDB() {
-      const { data, error } = await supabaseClient.from('app_settings').select('admin_password').eq('id', 1).maybeSingle();
+      const { data, error } = await supabaseClient.from('app_settings').select('admin_password, show_approval_simulator').eq('id', 1).maybeSingle();
       if (error || !data) {
         logDebugEntry(error);
         return;
       }
       adminPassword = data.admin_password;
+      showApprovalSimulator = data.show_approval_simulator !== false;
+    }
+
+    async function loadAdminNewsFromDB() {
+      const { data, error } = await supabaseClient.from('admin_news').select('*').order('created_at', { ascending: false });
+      if (error) {
+        logDebugEntry(error);
+        return;
+      }
+      adminNewsList = data;
     }
 
     // 初回アクセス時のみ: プレイヤーが空だった場合に初期メンバーを流し込む(戦績はデモデータを入れず空のままにする)
@@ -1460,7 +1532,7 @@
 
     async function loadData() {
       await seedInitialDataIfEmpty();
-      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB(), loadGameCommentsFromDB()]);
+      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB(), loadGameCommentsFromDB(), loadAdminNewsFromDB()]);
     }
 
     function executeAppConfirm() {
@@ -1720,6 +1792,7 @@
       renderPublicMatchHistory();
       renderGameCommentPlayerSelect();
       renderGameComments();
+      renderNewsTicker();
       updatePendingBanner();
 
       const totalApprovedMatches = matches.filter(m => m.status === 'approved').length;
@@ -1908,6 +1981,122 @@
           await loadGameCommentsFromDB();
           renderGameComments();
           showToast("コメントを削除しました。");
+        }
+      );
+    }
+
+    // --- 直近ニュースティッカー ---
+    // 直近コメント・直近戦績・直近登録者・管理者ニュースをそれぞれ最新1件ずつ集めて、右から左に流す
+    function renderNewsTicker() {
+      const track = document.getElementById('news-ticker-track');
+      if (!track) return;
+
+      const items = [];
+
+      if (gameComments.length > 0) {
+        const c = gameComments[0];
+        const author = c.playerId ? (players.find(p => p.id === c.playerId)?.name || '不明なプレイヤー') : '匿名';
+        const shortComment = c.comment.length > 30 ? c.comment.slice(0, 30) + '…' : c.comment;
+        items.push(`💬 ${author}さんがコメント: 「${shortComment}」`);
+      }
+
+      const approvedMatches = matches.filter(m => m.status === 'approved').sort((a, b) => b.createdAt - a.createdAt);
+      if (approvedMatches.length > 0) {
+        const m = approvedMatches[0];
+        const winner = players.find(p => p.id === m.winnerId);
+        items.push(`🏆 ${m.date}の対戦で${winner ? winner.name : '不明'}さんが優勝！`);
+      }
+
+      const approvedPlayers = players.filter(p => p.status === 'approved');
+      if (approvedPlayers.length > 0) {
+        const newest = approvedPlayers[approvedPlayers.length - 1];
+        items.push(`🎉 ${newest.name}さんが新しく登録されました！`);
+      }
+
+      if (adminNewsList.length > 0) {
+        items.push(`📢 ${adminNewsList[0].message}`);
+      }
+
+      if (items.length === 0) {
+        track.classList.remove('news-ticker-scroll');
+        track.innerHTML = `<span class="text-xs text-slate-400 font-bold px-4">まだニュースはありません。</span>`;
+        return;
+      }
+      track.classList.add('news-ticker-scroll');
+
+      // 継ぎ目なくループさせるため、同じ内容を2セット並べる
+      const itemsHtml = items.map(text => `<span class="text-xs font-bold whitespace-nowrap">${text}</span>`).join('');
+      track.innerHTML = itemsHtml + itemsHtml;
+    }
+
+    // --- 管理者からのニュース投稿 ---
+    async function postAdminNews() {
+      const input = document.getElementById('admin-news-text');
+      const message = input.value.trim();
+      if (!message) {
+        showAppWarningModal("お知らせ内容を入力してください。");
+        return;
+      }
+
+      const { error } = await supabaseClient.from('admin_news').insert({
+        id: "news_" + Date.now(),
+        message: message,
+        created_at: Date.now()
+      });
+      if (error) {
+        logDebugEntry(error);
+        showAppWarningModal("お知らせの投稿に失敗しました。通信環境を確認してください。");
+        return;
+      }
+
+      await loadAdminNewsFromDB();
+      renderAdminNewsList();
+      renderNewsTicker();
+      input.value = "";
+      showToast("お知らせを投稿しました。");
+    }
+
+    function renderAdminNewsList() {
+      const container = document.getElementById('admin-news-list');
+      if (!container) return;
+      container.innerHTML = "";
+
+      if (adminNewsList.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-2">まだお知らせはありません。</p>`;
+        return;
+      }
+
+      adminNewsList.forEach(n => {
+        const time = new Date(n.created_at).toLocaleString('ja-JP');
+        const item = document.createElement('div');
+        item.className = "bg-slate-50 border border-slate-100 rounded-lg p-2 flex justify-between items-start gap-2";
+        item.innerHTML = `
+          <div class="min-w-0 flex-1">
+            <div class="text-[9px] text-slate-400 font-mono mb-0.5">${time}</div>
+            <p class="text-xs text-slate-600 whitespace-pre-wrap break-words">${n.message}</p>
+          </div>
+          <button onclick="triggerDeleteAdminNewsConfirm('${n.id}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="お知らせを削除"><i class="fa-solid fa-trash-can text-xs"></i></button>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function triggerDeleteAdminNewsConfirm(newsId) {
+      showAppConfirmModal(
+        "お知らせの削除",
+        "このお知らせを削除しますか？",
+        true,
+        async function() {
+          const { error } = await supabaseClient.from('admin_news').delete().eq('id', newsId);
+          if (error) {
+            logDebugEntry(error);
+            showAppWarningModal("削除処理に失敗しました。通信環境を確認してください。");
+            return;
+          }
+          await loadAdminNewsFromDB();
+          renderAdminNewsList();
+          renderNewsTicker();
+          showToast("お知らせを削除しました。");
         }
       );
     }
@@ -2843,10 +3032,13 @@
       }
 
       renderSeedStatsAdmin();
+      renderAdminNewsList();
 
       if (currentRole === 'admin') {
         loadVisitStatsForAdmin();
         loadNotificationSettingsForAdmin();
+        const simToggle = document.getElementById('show-approval-simulator-toggle');
+        if (simToggle) simToggle.checked = showApprovalSimulator;
       }
     }
 
@@ -3071,17 +3263,19 @@
         showToast("戦績を直接登録し、ボードに反映しました！");
       } else {
         showToast("戦績を申請しました。管理者の承認をお待ちください。");
-        setTimeout(() => {
-          showAppConfirmModal(
-            "承認シミュレーターの案内",
-            "申請した戦績を、管理者として承認するシミュレート（デモ体験）を行いますか？（管理者画面に切り替わります）",
-            false,
-            function() {
-              trySwitchToAdmin();
-              scrollToSection('admin-section');
-            }
-          );
-        }, 800);
+        if (showApprovalSimulator) {
+          setTimeout(() => {
+            showAppConfirmModal(
+              "承認シミュレーターの案内",
+              "申請した戦績を、管理者として承認するシミュレート（デモ体験）を行いますか？（管理者画面に切り替わります）",
+              false,
+              function() {
+                trySwitchToAdmin();
+                scrollToSection('admin-section');
+              }
+            );
+          }, 800);
+        }
       }
     }
 
@@ -3350,6 +3544,9 @@
           if (payload.new && payload.new.admin_password) {
             adminPassword = payload.new.admin_password;
           }
+          if (payload.new && typeof payload.new.show_approval_simulator === 'boolean') {
+            showApprovalSimulator = payload.new.show_approval_simulator;
+          }
         })
         .subscribe();
 
@@ -3358,6 +3555,16 @@
         .on('postgres_changes', { event: '*', schema: 'public', table: 'game_comments' }, async () => {
           await loadGameCommentsFromDB();
           renderGameComments();
+          renderNewsTicker();
+        })
+        .subscribe();
+
+      supabaseClient
+        .channel('public:admin_news-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'admin_news' }, async () => {
+          await loadAdminNewsFromDB();
+          renderAdminNewsList();
+          renderNewsTicker();
         })
         .subscribe();
     }

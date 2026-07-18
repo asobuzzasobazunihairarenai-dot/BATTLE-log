@@ -115,3 +115,18 @@ alter table game_comments alter column player_id drop not null;
 alter table app_settings add column if not exists notify_on_match boolean not null default true;
 alter table app_settings add column if not exists notify_on_comment boolean not null default true;
 alter table app_settings add column if not exists notify_on_player boolean not null default true;
+
+-- 追加機能: 承認シミュレーターの案内ポップアップのON/OFF設定
+alter table app_settings add column if not exists show_approval_simulator boolean not null default true;
+
+-- 追加機能: 管理者からのニュース投稿(ニュースティッカー用)
+create table if not exists admin_news (
+  id text primary key,
+  message text not null,
+  created_at bigint not null
+);
+alter table admin_news enable row level security;
+create policy "admin_news_select" on admin_news for select using (true);
+create policy "admin_news_insert" on admin_news for insert with check (true);
+create policy "admin_news_delete" on admin_news for delete using (true);
+alter publication supabase_realtime add table admin_news;
