@@ -147,3 +147,9 @@ create policy "match_feedback_replies_select" on match_feedback_replies for sele
 create policy "match_feedback_replies_insert" on match_feedback_replies for insert with check (true);
 create policy "match_feedback_replies_delete" on match_feedback_replies for delete using (true);
 alter publication supabase_realtime add table match_feedback_replies;
+
+-- 追加機能: 管理者ニュースに「非表示フラグ」を追加(削除せず一時的に隠せるように)
+alter table admin_news add column if not exists is_hidden boolean not null default false;
+
+-- 追加修正: admin_newsテーブルにUPDATE(非表示フラグの更新)を許可するポリシーが抜けていたので追加
+create policy "admin_news_update" on admin_news for update using (true);

@@ -120,6 +120,16 @@
       <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
     </a>
 
+    <!-- 重要なお知らせ (管理者が投稿した、非表示にされていないもの全て) -->
+    <div id="important-news-section" class="hidden bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-2">
+      <h2 class="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+        <i class="fa-solid fa-triangle-exclamation"></i> 重要なお知らせ
+      </h2>
+      <div id="important-news-list" class="space-y-2">
+        <!-- JSで動的構築 -->
+      </div>
+    </div>
+
     <!-- 管理者用の「承認待ち」お知らせバナー -->
     <div id="pending-banner" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-sm fade-in">
       <div class="flex items-center gap-3">
@@ -1083,7 +1093,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607191635";
+    const BUILD_VERSION = "202607191641";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1851,6 +1861,7 @@
       renderGameCommentPlayerSelect();
       renderGameComments();
       renderNewsTicker();
+      renderImportantNewsSection();
       updateActivityBadges();
       updatePendingBanner();
 
@@ -2253,7 +2264,7 @@
       });
 
       // 管理者からのニュース 最大3件
-      adminNewsList.slice(0, 3).forEach(n => {
+      adminNewsList.filter(n => !n.is_hidden).slice(0, 3).forEach(n => {
         items.push(`📢 ${n.message}`);
       });
 
@@ -2292,6 +2303,7 @@
       await loadAdminNewsFromDB();
       renderAdminNewsList();
       renderNewsTicker();
+      renderImportantNewsSection();
       input.value = "";
       showToast("お知らせを投稿しました。");
     }
@@ -2308,17 +2320,42 @@
 
       adminNewsList.forEach(n => {
         const time = new Date(n.created_at).toLocaleString('ja-JP');
+        const hiddenBadgeHtml = n.is_hidden
+          ? `<span class="text-[9px] bg-slate-200 text-slate-500 font-bold px-1.5 py-0.5 rounded-full shrink-0">非表示中</span>`
+          : '';
         const item = document.createElement('div');
-        item.className = "bg-slate-50 border border-slate-100 rounded-lg p-2 flex justify-between items-start gap-2";
+        item.className = `border rounded-lg p-2 flex justify-between items-start gap-2 ${n.is_hidden ? 'bg-slate-100 border-slate-200 opacity-70' : 'bg-slate-50 border-slate-100'}`;
         item.innerHTML = `
           <div class="min-w-0 flex-1">
-            <div class="text-[9px] text-slate-400 font-mono mb-0.5">${time}</div>
+            <div class="flex items-center gap-1.5 mb-0.5 flex-wrap">
+              <span class="text-[9px] text-slate-400 font-mono">${time}</span>
+              ${hiddenBadgeHtml}
+            </div>
             <p class="text-xs text-slate-600 whitespace-pre-wrap break-words">${n.message}</p>
           </div>
-          <button onclick="triggerDeleteAdminNewsConfirm('${n.id}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="お知らせを削除"><i class="fa-solid fa-trash-can text-xs"></i></button>
+          <div class="flex items-center gap-2 shrink-0">
+            <button onclick="toggleAdminNewsHidden('${n.id}', ${n.is_hidden})" class="text-slate-400 hover:text-indigo-600 transition" title="${n.is_hidden ? '表示に戻す' : '非表示にする'}">
+              <i class="fa-solid ${n.is_hidden ? 'fa-eye' : 'fa-eye-slash'} text-xs"></i>
+            </button>
+            <button onclick="triggerDeleteAdminNewsConfirm('${n.id}')" class="text-slate-300 hover:text-rose-500 transition" title="お知らせを削除"><i class="fa-solid fa-trash-can text-xs"></i></button>
+          </div>
         `;
         container.appendChild(item);
       });
+    }
+
+    async function toggleAdminNewsHidden(newsId, currentlyHidden) {
+      const { error } = await supabaseClient.from('admin_news').update({ is_hidden: !currentlyHidden }).eq('id', newsId);
+      if (error) {
+        logDebugEntry(error);
+        showAppWarningModal("更新に失敗しました。通信環境を確認してください。");
+        return;
+      }
+      await loadAdminNewsFromDB();
+      renderAdminNewsList();
+      renderNewsTicker();
+      renderImportantNewsSection();
+      showToast(currentlyHidden ? "お知らせを表示に戻しました。" : "お知らせを非表示にしました。");
     }
 
     function triggerDeleteAdminNewsConfirm(newsId) {
@@ -2336,9 +2373,36 @@
           await loadAdminNewsFromDB();
           renderAdminNewsList();
           renderNewsTicker();
+          renderImportantNewsSection();
           showToast("お知らせを削除しました。");
         }
       );
+    }
+
+    // 「重要なお知らせ」欄: 非表示にされていない管理者ニュースを全件表示する
+    function renderImportantNewsSection() {
+      const section = document.getElementById('important-news-section');
+      const list = document.getElementById('important-news-list');
+      if (!section || !list) return;
+
+      const visibleNews = adminNewsList.filter(n => !n.is_hidden);
+
+      if (visibleNews.length === 0) {
+        section.classList.add('hidden');
+        list.innerHTML = "";
+        return;
+      }
+
+      section.classList.remove('hidden');
+      list.innerHTML = visibleNews.map(n => {
+        const time = new Date(n.created_at).toLocaleString('ja-JP');
+        return `
+          <div class="bg-white border border-amber-200 rounded-lg p-2.5">
+            <div class="text-[9px] text-amber-600 font-mono mb-0.5">${time}</div>
+            <p class="text-xs text-amber-900 font-bold whitespace-pre-wrap break-words">${n.message}</p>
+          </div>
+        `;
+      }).join('');
     }
 
     // アバターゲット用の汎用ヘルパー (編集申請中[editPending]があればそちらのアバターを優先して取り出す)
@@ -3806,6 +3870,7 @@
           await loadAdminNewsFromDB();
           renderAdminNewsList();
           renderNewsTicker();
+          renderImportantNewsSection();
         })
         .subscribe();
 
