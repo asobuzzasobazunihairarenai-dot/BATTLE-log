@@ -153,3 +153,6 @@ alter table admin_news add column if not exists is_hidden boolean not null defau
 
 -- 追加修正: admin_newsテーブルにUPDATE(非表示フラグの更新)を許可するポリシーが抜けていたので追加
 create policy "admin_news_update" on admin_news for update using (true);
+
+-- 追加機能: ニュースティッカーの流れる速度を管理者が調整できるようにする(秒数=1周にかかる時間。大きいほどゆっくり)
+alter table app_settings add column if not exists ticker_speed_seconds integer not null default 50;

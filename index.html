@@ -27,7 +27,7 @@
       to { transform: translateX(-50%); }
     }
     .news-ticker-scroll {
-      animation: news-ticker-scroll 25s linear infinite;
+      animation: news-ticker-scroll 50s linear infinite;
     }
     .news-ticker-scroll:hover {
       animation-play-state: paused;
@@ -612,6 +612,14 @@
               <span class="text-xs font-bold text-slate-600"><i class="fa-solid fa-circle-play text-indigo-500 mr-1.5"></i>戦績申請後に「承認シミュレーターの案内」を表示する</span>
               <input type="checkbox" id="show-approval-simulator-toggle" onchange="saveShowApprovalSimulator()" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-gray-300">
             </label>
+            <div class="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg p-2.5 mt-2">
+              <span class="text-xs font-bold text-slate-600"><i class="fa-solid fa-gauge-simple-high text-indigo-500 mr-1.5"></i>ニュース帯が流れる速さ(秒数が大きいほどゆっくり)</span>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <input type="number" id="ticker-speed-input" min="10" max="180" step="5" class="w-16 text-xs bg-white border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400 text-center">
+                <span class="text-[10px] text-slate-400">秒</span>
+                <button type="button" onclick="saveTickerSpeed()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg">保存</button>
+              </div>
+            </div>
           </div>
 
           <!-- 管理者ニュース投稿セクション -->
@@ -1035,6 +1043,9 @@
     // ニュースティッカー用: 直近のお知らせ(管理者投稿)
     let adminNewsList = [];
 
+    // ニュースティッカーの流れる速度 (1周にかかる秒数。数値が大きいほどゆっくり。Supabaseのapp_settingsで全員に共有)
+    let tickerSpeedSeconds = 50;
+
     // カラーパレット (仮アバター生成用)
     const avatarBgColors = [
       '#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245',
@@ -1093,7 +1104,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607191641";
+    const BUILD_VERSION = "202607191655";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1509,6 +1520,22 @@
       showToast("表示設定を保存しました。");
     }
 
+    async function saveTickerSpeed() {
+      const input = document.getElementById('ticker-speed-input');
+      const seconds = Math.max(10, Math.min(180, parseInt(input.value, 10) || 50));
+      input.value = seconds;
+
+      const { error } = await supabaseClient.from('app_settings').update({ ticker_speed_seconds: seconds }).eq('id', 1);
+      if (error) {
+        logDebugEntry(error);
+        showAppWarningModal("設定の保存に失敗しました。通信環境を確認してください。");
+        return;
+      }
+      tickerSpeedSeconds = seconds;
+      renderNewsTicker();
+      showToast("ニュース帯の速度を保存しました。");
+    }
+
     // 貼り付け/アップロードされた画像(dataURL)をSupabase Storageにアップロードして公開URLを返す
     async function uploadImageToStorage(dataUrl, bucket) {
       if (!dataUrl) return "";
@@ -1555,13 +1582,14 @@
     }
 
     async function loadAdminPasswordFromDB() {
-      const { data, error } = await supabaseClient.from('app_settings').select('admin_password, show_approval_simulator').eq('id', 1).maybeSingle();
+      const { data, error } = await supabaseClient.from('app_settings').select('admin_password, show_approval_simulator, ticker_speed_seconds').eq('id', 1).maybeSingle();
       if (error || !data) {
         logDebugEntry(error);
         return;
       }
       adminPassword = data.admin_password;
       showApprovalSimulator = data.show_approval_simulator !== false;
+      tickerSpeedSeconds = data.ticker_speed_seconds || 50;
     }
 
     async function loadAdminNewsFromDB() {
@@ -2274,6 +2302,7 @@
         return;
       }
       track.classList.add('news-ticker-scroll');
+      track.style.animationDuration = `${tickerSpeedSeconds}s`;
 
       // 継ぎ目なくループさせるため、同じ内容を2セット並べる
       const itemsHtml = items.map(text => `<span class="text-xs font-bold whitespace-nowrap">${text}</span>`).join('');
@@ -3343,6 +3372,8 @@
         loadNotificationSettingsForAdmin();
         const simToggle = document.getElementById('show-approval-simulator-toggle');
         if (simToggle) simToggle.checked = showApprovalSimulator;
+        const speedInput = document.getElementById('ticker-speed-input');
+        if (speedInput) speedInput.value = tickerSpeedSeconds;
       }
     }
 
@@ -3850,6 +3881,10 @@
           }
           if (payload.new && typeof payload.new.show_approval_simulator === 'boolean') {
             showApprovalSimulator = payload.new.show_approval_simulator;
+          }
+          if (payload.new && payload.new.ticker_speed_seconds) {
+            tickerSpeedSeconds = payload.new.ticker_speed_seconds;
+            renderNewsTicker();
           }
         })
         .subscribe();
