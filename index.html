@@ -13,6 +13,14 @@
   <!-- Supabase (複数人でのデータ共有バックエンド) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
+    /* 直近3日以内に返信があったことを知らせるバッジを点滅させる */
+    @keyframes blink-badge {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
+    }
+    .blink-badge {
+      animation: blink-badge 1.2s ease-in-out infinite;
+    }
     /* 直近ニュースティッカー: トラック内でコンテンツを2セット並べ、-50%までスクロールして継ぎ目なくループさせる */
     @keyframes news-ticker-scroll {
       from { transform: translateX(0); }
@@ -331,6 +339,7 @@
             <h2 class="font-bold text-md text-slate-800 flex items-center gap-2">
               <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i>
               過去の戦績履歴
+              <span id="match-history-new-badge" class="hidden text-[9px] bg-rose-100 text-rose-600 font-bold px-2 py-0.5 rounded-full blink-badge">直近3日間で返信あり</span>
             </h2>
             <i id="match-history-chevron" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform"></i>
           </button>
@@ -347,6 +356,7 @@
             <h2 class="font-bold text-md text-slate-800 flex items-center gap-2">
               <i class="fa-solid fa-comments text-indigo-600"></i>
               ゲームについてコメントする
+              <span id="game-comments-new-badge" class="hidden text-[9px] bg-rose-100 text-rose-600 font-bold px-2 py-0.5 rounded-full blink-badge">直近3日間で返信あり</span>
             </h2>
             <i id="game-comments-chevron" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform"></i>
           </button>
@@ -1073,7 +1083,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607191611";
+    const BUILD_VERSION = "202607191628";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1788,6 +1798,23 @@
       renderAll();
     }
 
+    // 直近3日以内に返信があった場合、セクションタイトル横の点滅バッジを表示する
+    function updateActivityBadges() {
+      const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+
+      const matchHistoryBadge = document.getElementById('match-history-new-badge');
+      if (matchHistoryBadge) {
+        const hasRecentFeedbackReply = matchFeedbackReplies.some(r => r.createdAt >= threeDaysAgo);
+        matchHistoryBadge.classList.toggle('hidden', !hasRecentFeedbackReply);
+      }
+
+      const gameCommentsBadge = document.getElementById('game-comments-new-badge');
+      if (gameCommentsBadge) {
+        const hasRecentCommentReply = gameComments.some(c => c.parentId && c.createdAt >= threeDaysAgo);
+        gameCommentsBadge.classList.toggle('hidden', !hasRecentCommentReply);
+      }
+    }
+
     // 未承認バナーの表示制御 (管理者ロールかつ承認待ちがある場合のみ表示)
     function updatePendingBanner() {
       const pendingMatchesCount = matches.filter(m => m.status === 'pending').length;
@@ -1824,6 +1851,7 @@
       renderGameCommentPlayerSelect();
       renderGameComments();
       renderNewsTicker();
+      updateActivityBadges();
       updatePendingBanner();
 
       const totalApprovedMatches = matches.filter(m => m.status === 'approved').length;
@@ -3767,6 +3795,7 @@
           await loadGameCommentsFromDB();
           renderGameComments();
           renderNewsTicker();
+          updateActivityBadges();
         })
         .subscribe();
 
@@ -3784,6 +3813,7 @@
         .on('postgres_changes', { event: '*', schema: 'public', table: 'match_feedback_replies' }, async () => {
           await loadMatchFeedbackRepliesFromDB();
           renderPublicMatchHistory();
+          updateActivityBadges();
         })
         .subscribe();
     }
