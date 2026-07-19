@@ -1059,6 +1059,7 @@
     let players = [];
     let matches = [];
     let gameComments = [];
+    let matchFeedbackReplies = [];
 
     // --- ボードの日時を更新する関数の定義 (消失していた不具合を完全に修正) ---
     function updateBoardDateTime() {
@@ -1072,7 +1073,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607191603";
+    const BUILD_VERSION = "202607191611";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1375,6 +1376,34 @@
       gameComments = data.map(rowToGameComment);
     }
 
+    // 戦績の「感想・フィードバック」への返信
+    function rowToMatchFeedbackReply(row) {
+      return {
+        id: row.id,
+        matchId: row.match_id,
+        playerId: row.player_id || null,
+        comment: row.comment,
+        createdAt: Number(row.created_at)
+      };
+    }
+    function matchFeedbackReplyToRow(r) {
+      return {
+        id: r.id,
+        match_id: r.matchId,
+        player_id: r.playerId || null,
+        comment: r.comment,
+        created_at: r.createdAt
+      };
+    }
+    async function loadMatchFeedbackRepliesFromDB() {
+      const { data, error } = await supabaseClient.from('match_feedback_replies').select('*').order('created_at', { ascending: true });
+      if (error) {
+        logDebugEntry(error);
+        return;
+      }
+      matchFeedbackReplies = data.map(rowToMatchFeedbackReply);
+    }
+
     // --- アクセスログ ---
     // タブを開いている間は1回だけ記録する(リロード連打で水増しされないように)
     function logVisitIfNeeded() {
@@ -1534,7 +1563,7 @@
 
     async function loadData() {
       await seedInitialDataIfEmpty();
-      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB(), loadGameCommentsFromDB(), loadAdminNewsFromDB()]);
+      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB(), loadGameCommentsFromDB(), loadAdminNewsFromDB(), loadMatchFeedbackRepliesFromDB()]);
     }
 
     function executeAppConfirm() {
@@ -1867,9 +1896,11 @@
           ? `<div class="text-[9px] text-slate-400 font-bold text-center mt-1"><i class="fa-solid fa-hourglass-half mr-0.5"></i>約${match.durationMinutes}分</div>`
           : '';
 
-        const feedbackHtml = match.feedback && match.feedback.trim() !== ""
+        const hasFeedback = match.feedback && match.feedback.trim() !== "";
+        const feedbackHtml = hasFeedback
           ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${buildExpandableTextHtml(match.feedback, 'history-feedback-' + match.id)}</p>`
           : '';
+        const feedbackRepliesHtml = hasFeedback ? renderMatchFeedbackRepliesHtml(match.id) : '';
 
         const item = document.createElement('div');
         item.className = "border border-slate-200/80 rounded-xl p-3 flex gap-3 items-start";
@@ -1885,10 +1916,104 @@
             </div>
             <div class="flex items-center gap-1 flex-wrap">${memberChipsHtml}</div>
             ${feedbackHtml}
+            ${feedbackRepliesHtml}
           </div>
         `;
         container.appendChild(item);
       });
+    }
+
+    // 戦績の「感想・フィードバック」への返信スレッド(既存返信一覧＋返信フォーム)のHTMLを構築する
+    function renderMatchFeedbackRepliesHtml(matchId) {
+      const replies = matchFeedbackReplies.filter(r => r.matchId === matchId);
+      const repliesHtml = replies.map(r => {
+        const time = new Date(r.createdAt).toLocaleString('ja-JP');
+        const deleteBtnHtml = currentRole === 'admin'
+          ? `<button onclick="triggerDeleteMatchFeedbackReplyConfirm('${r.id}', '${matchId}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="返信を削除"><i class="fa-solid fa-trash-can text-xs"></i></button>`
+          : '';
+        return `
+          <div class="bg-white border border-slate-100 rounded-lg p-2 flex justify-between items-start gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                <span class="text-[11px] font-bold text-slate-700">${getCommentAuthorName(r)}</span>
+                <span class="text-[9px] text-slate-400 font-mono">${time}</span>
+              </div>
+              <p class="text-[11px] text-slate-600 whitespace-pre-wrap break-words">${r.comment}</p>
+            </div>
+            ${deleteBtnHtml}
+          </div>
+        `;
+      }).join('');
+
+      return `
+        ${repliesHtml ? `<div class="mt-1.5 pl-3 border-l-2 border-slate-200 space-y-1.5">${repliesHtml}</div>` : ''}
+        <button type="button" onclick="toggleMatchFeedbackReplyForm('${matchId}')" class="text-[10px] text-indigo-500 hover:text-indigo-700 font-bold mt-1 ml-1">
+          <i class="fa-solid fa-reply mr-0.5"></i>返信する
+        </button>
+        <div id="match-feedback-reply-form-${matchId}" class="hidden mt-1.5 pl-3 border-l-2 border-indigo-100 space-y-1.5">
+          <select id="match-feedback-reply-select-${matchId}" class="w-full text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">
+            ${buildCommenterOptionsHtml()}
+          </select>
+          <div class="flex gap-1.5">
+            <input type="text" id="match-feedback-reply-text-${matchId}" placeholder="返信を入力..." class="flex-1 text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">
+            <button type="button" onclick="submitMatchFeedbackReply('${matchId}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg shrink-0">送信</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleMatchFeedbackReplyForm(matchId) {
+      const form = document.getElementById(`match-feedback-reply-form-${matchId}`);
+      if (form) form.classList.toggle('hidden');
+    }
+
+    async function submitMatchFeedbackReply(matchId) {
+      const select = document.getElementById(`match-feedback-reply-select-${matchId}`);
+      const textInput = document.getElementById(`match-feedback-reply-text-${matchId}`);
+      const commentText = textInput.value.trim();
+
+      if (!commentText) {
+        showAppWarningModal("返信内容を入力してください。");
+        return;
+      }
+
+      const newReply = {
+        id: "mfr_" + Date.now(),
+        matchId: matchId,
+        playerId: select.value || null,
+        comment: commentText,
+        createdAt: Date.now()
+      };
+
+      const { error } = await supabaseClient.from('match_feedback_replies').insert(matchFeedbackReplyToRow(newReply));
+      if (error) {
+        logDebugEntry(error);
+        showAppWarningModal("返信の投稿に失敗しました。通信環境を確認してください。");
+        return;
+      }
+
+      await loadMatchFeedbackRepliesFromDB();
+      renderPublicMatchHistory();
+      showToast("返信を投稿しました。");
+    }
+
+    function triggerDeleteMatchFeedbackReplyConfirm(replyId, matchId) {
+      showAppConfirmModal(
+        "返信の削除",
+        "この返信を削除しますか？",
+        true,
+        async function() {
+          const { error } = await supabaseClient.from('match_feedback_replies').delete().eq('id', replyId);
+          if (error) {
+            logDebugEntry(error);
+            showAppWarningModal("削除処理に失敗しました。通信環境を確認してください。");
+            return;
+          }
+          await loadMatchFeedbackRepliesFromDB();
+          renderPublicMatchHistory();
+          showToast("返信を削除しました。");
+        }
+      );
     }
 
     // 「コメント者」選択肢のHTML断片 (メインのコメント欄・各返信フォームで共通利用)
@@ -3651,6 +3776,14 @@
           await loadAdminNewsFromDB();
           renderAdminNewsList();
           renderNewsTicker();
+        })
+        .subscribe();
+
+      supabaseClient
+        .channel('public:match_feedback_replies-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'match_feedback_replies' }, async () => {
+          await loadMatchFeedbackRepliesFromDB();
+          renderPublicMatchHistory();
         })
         .subscribe();
     }

@@ -133,3 +133,17 @@ alter publication supabase_realtime add table admin_news;
 
 -- 追加機能: 「ゲームについてコメントする」の返信機能
 alter table game_comments add column if not exists parent_id text references game_comments(id) on delete cascade;
+
+-- 追加機能: 戦績の「感想・フィードバック」への返信機能
+create table if not exists match_feedback_replies (
+  id text primary key,
+  match_id text not null references matches(id) on delete cascade,
+  player_id text,
+  comment text not null,
+  created_at bigint not null
+);
+alter table match_feedback_replies enable row level security;
+create policy "match_feedback_replies_select" on match_feedback_replies for select using (true);
+create policy "match_feedback_replies_insert" on match_feedback_replies for insert with check (true);
+create policy "match_feedback_replies_delete" on match_feedback_replies for delete using (true);
+alter publication supabase_realtime add table match_feedback_replies;
