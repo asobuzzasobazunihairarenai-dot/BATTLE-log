@@ -130,3 +130,6 @@ create policy "admin_news_select" on admin_news for select using (true);
 create policy "admin_news_insert" on admin_news for insert with check (true);
 create policy "admin_news_delete" on admin_news for delete using (true);
 alter publication supabase_realtime add table admin_news;
+
+-- 追加機能: 「ゲームについてコメントする」の返信機能
+alter table game_comments add column if not exists parent_id text references game_comments(id) on delete cascade;

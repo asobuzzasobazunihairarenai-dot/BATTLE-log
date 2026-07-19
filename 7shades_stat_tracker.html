@@ -1072,7 +1072,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607180938";
+    const BUILD_VERSION = "202607191603";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1353,6 +1353,7 @@
         id: row.id,
         playerId: row.player_id,
         comment: row.comment,
+        parentId: row.parent_id || null,
         createdAt: Number(row.created_at)
       };
     }
@@ -1361,6 +1362,7 @@
         id: c.id,
         player_id: c.playerId,
         comment: c.comment,
+        parent_id: c.parentId || null,
         created_at: c.createdAt
       };
     }
@@ -1889,51 +1891,103 @@
       });
     }
 
+    // 「コメント者」選択肢のHTML断片 (メインのコメント欄・各返信フォームで共通利用)
+    function buildCommenterOptionsHtml() {
+      const approvedPlayers = players.filter(p => p.status === 'approved').sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      return `<option value="">匿名</option>` + approvedPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    }
+
     // 「コメント者」選択プルダウンの構築 (承認済みプレイヤーを五十音順で表示)
     function renderGameCommentPlayerSelect() {
       const select = document.getElementById('game-comment-player-select');
       if (!select) return;
       const previousValue = select.value;
-      const approvedPlayers = players.filter(p => p.status === 'approved').sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-      select.innerHTML = `<option value="">匿名</option>` + approvedPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-      if (previousValue === "" || approvedPlayers.some(p => p.id === previousValue)) {
+      select.innerHTML = buildCommenterOptionsHtml();
+      const approvedIds = players.filter(p => p.status === 'approved').map(p => p.id);
+      if (previousValue === "" || approvedIds.includes(previousValue)) {
         select.value = previousValue;
       }
     }
 
-    // ゲームについてのコメント一覧の構築 (新しい順。削除は管理者のみ)
+    // ゲームについてのコメント一覧の構築 (新しい順。削除は管理者のみ。返信スレッド対応)
+
+    function getCommentAuthorName(c) {
+      const author = c.playerId ? players.find(p => p.id === c.playerId) : null;
+      return c.playerId ? (author ? author.name : "不明なプレイヤー") : "匿名";
+    }
+
     function renderGameComments() {
       const container = document.getElementById('game-comments-container');
       if (!container) return;
       container.innerHTML = "";
 
-      if (gameComments.length === 0) {
+      const topLevel = gameComments.filter(c => !c.parentId);
+
+      if (topLevel.length === 0) {
         container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-4">まだコメントはありません。</p>`;
         return;
       }
 
-      gameComments.forEach(c => {
-        const author = c.playerId ? players.find(p => p.id === c.playerId) : null;
-        const authorName = c.playerId ? (author ? author.name : "不明なプレイヤー") : "匿名";
+      topLevel.forEach(c => {
         const time = new Date(c.createdAt).toLocaleString('ja-JP');
         const deleteBtnHtml = currentRole === 'admin'
           ? `<button onclick="triggerDeleteGameCommentConfirm('${c.id}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="コメントを削除"><i class="fa-solid fa-trash-can text-xs"></i></button>`
           : '';
 
-        const item = document.createElement('div');
-        item.className = "bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex justify-between items-start gap-2";
-        item.innerHTML = `
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-1.5 mb-1 flex-wrap">
-              <span class="text-xs font-bold text-slate-700">${authorName}</span>
-              <span class="text-[9px] text-slate-400 font-mono">${time}</span>
+        const replies = gameComments.filter(r => r.parentId === c.id).sort((a, b) => a.createdAt - b.createdAt);
+        const repliesHtml = replies.map(r => {
+          const rTime = new Date(r.createdAt).toLocaleString('ja-JP');
+          const rDeleteBtnHtml = currentRole === 'admin'
+            ? `<button onclick="triggerDeleteGameCommentConfirm('${r.id}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="返信を削除"><i class="fa-solid fa-trash-can text-xs"></i></button>`
+            : '';
+          return `
+            <div class="bg-white border border-slate-100 rounded-lg p-2 flex justify-between items-start gap-2">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                  <span class="text-[11px] font-bold text-slate-700">${getCommentAuthorName(r)}</span>
+                  <span class="text-[9px] text-slate-400 font-mono">${rTime}</span>
+                </div>
+                <p class="text-[11px] text-slate-600 whitespace-pre-wrap break-words">${r.comment}</p>
+              </div>
+              ${rDeleteBtnHtml}
             </div>
-            <p class="text-xs text-slate-600 whitespace-pre-wrap break-words">${c.comment}</p>
+          `;
+        }).join('');
+
+        const item = document.createElement('div');
+        item.className = "bg-slate-50 border border-slate-100 rounded-xl p-2.5";
+        item.innerHTML = `
+          <div class="flex justify-between items-start gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+                <span class="text-xs font-bold text-slate-700">${getCommentAuthorName(c)}</span>
+                <span class="text-[9px] text-slate-400 font-mono">${time}</span>
+              </div>
+              <p class="text-xs text-slate-600 whitespace-pre-wrap break-words">${c.comment}</p>
+              <button type="button" onclick="toggleReplyForm('${c.id}')" class="text-[10px] text-indigo-500 hover:text-indigo-700 font-bold mt-1">
+                <i class="fa-solid fa-reply mr-0.5"></i>返信する
+              </button>
+            </div>
+            ${deleteBtnHtml}
           </div>
-          ${deleteBtnHtml}
+          ${repliesHtml ? `<div class="mt-2 pl-3 border-l-2 border-slate-200 space-y-1.5">${repliesHtml}</div>` : ''}
+          <div id="reply-form-${c.id}" class="hidden mt-2 pl-3 border-l-2 border-indigo-100 space-y-1.5">
+            <select id="reply-player-select-${c.id}" class="w-full text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">
+              ${buildCommenterOptionsHtml()}
+            </select>
+            <div class="flex gap-1.5">
+              <input type="text" id="reply-text-${c.id}" placeholder="返信を入力..." class="flex-1 text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">
+              <button type="button" onclick="submitGameCommentReply('${c.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg shrink-0">送信</button>
+            </div>
+          </div>
         `;
         container.appendChild(item);
       });
+    }
+
+    function toggleReplyForm(commentId) {
+      const form = document.getElementById(`reply-form-${commentId}`);
+      if (form) form.classList.toggle('hidden');
     }
 
     async function submitGameComment() {
@@ -1950,6 +2004,7 @@
         id: "c_" + Date.now(),
         playerId: playerId,
         comment: commentText,
+        parentId: null,
         createdAt: Date.now()
       };
 
@@ -1966,10 +2021,41 @@
       showToast("コメントを投稿しました。");
     }
 
+    async function submitGameCommentReply(parentId) {
+      const playerSelect = document.getElementById(`reply-player-select-${parentId}`);
+      const textInput = document.getElementById(`reply-text-${parentId}`);
+      const commentText = textInput.value.trim();
+
+      if (!commentText) {
+        showAppWarningModal("返信内容を入力してください。");
+        return;
+      }
+
+      const newReply = {
+        id: "c_" + Date.now(),
+        playerId: playerSelect.value || null,
+        comment: commentText,
+        parentId: parentId,
+        createdAt: Date.now()
+      };
+
+      const { error } = await supabaseClient.from('game_comments').insert(gameCommentToRow(newReply));
+      if (error) {
+        logDebugEntry(error);
+        showAppWarningModal("返信の投稿に失敗しました。通信環境を確認してください。");
+        return;
+      }
+
+      await loadGameCommentsFromDB();
+      renderGameComments();
+      showToast("返信を投稿しました。");
+    }
+
     function triggerDeleteGameCommentConfirm(commentId) {
+      const hasReplies = gameComments.some(r => r.parentId === commentId);
       showAppConfirmModal(
         "コメントの削除",
-        "このコメントを削除しますか？",
+        hasReplies ? "このコメントを削除しますか？(紐づく返信もすべて削除されます)" : "このコメントを削除しますか？",
         true,
         async function() {
           const { error } = await supabaseClient.from('game_comments').delete().eq('id', commentId);
