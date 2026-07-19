@@ -1083,7 +1083,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607191628";
+    const BUILD_VERSION = "202607191635";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1881,29 +1881,13 @@
       if (!container) return;
       container.innerHTML = "";
 
-      // 公開前の初期戦績(ベース値)がある場合、履歴の先頭に一括記録として1件表示する
+      // 公開前の初期戦績(ベース値)は最古の記録として扱うため、一覧の最下部に表示する
       const seedPlayers = players.filter(p => p.status === 'approved' && (p.seedMatchesCount || 0) > 0);
-      if (seedPlayers.length > 0) {
-        const seedChipsHtml = seedPlayers.map(p => {
-          const avatarHtml = getAvatarElementHtml(p, 5);
-          return `<span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5">${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${p.name} (${p.seedWinsCount || 0}勝/${p.seedMatchesCount}戦)</span></span>`;
-        }).join(' ');
-
-        const seedItem = document.createElement('div');
-        seedItem.className = "border border-indigo-100 bg-indigo-50/30 rounded-xl p-3";
-        seedItem.innerHTML = `
-          <div class="text-xs font-bold text-indigo-700 mb-1.5"><i class="fa-solid fa-box-archive mr-1"></i>公開前の過去戦績(一括記録)</div>
-          <div class="flex items-center gap-1 flex-wrap">${seedChipsHtml}</div>
-        `;
-        container.appendChild(seedItem);
-      }
 
       const approvedList = [...matches].filter(m => m.status === 'approved').sort((a, b) => b.createdAt - a.createdAt);
 
-      if (approvedList.length === 0) {
-        if (seedPlayers.length === 0) {
-          container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-6">承認済みの対戦データがまだありません。</p>`;
-        }
+      if (approvedList.length === 0 && seedPlayers.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-6">承認済みの対戦データがまだありません。</p>`;
         return;
       }
 
@@ -1949,6 +1933,22 @@
         `;
         container.appendChild(item);
       });
+
+      // 公開前の初期戦績(ベース値)は最古の記録として一覧の最後に追加する
+      if (seedPlayers.length > 0) {
+        const seedChipsHtml = seedPlayers.map(p => {
+          const avatarHtml = getAvatarElementHtml(p, 5);
+          return `<span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5">${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${p.name} (${p.seedWinsCount || 0}勝/${p.seedMatchesCount}戦)</span></span>`;
+        }).join(' ');
+
+        const seedItem = document.createElement('div');
+        seedItem.className = "border border-indigo-100 bg-indigo-50/30 rounded-xl p-3";
+        seedItem.innerHTML = `
+          <div class="text-xs font-bold text-indigo-700 mb-1.5"><i class="fa-solid fa-box-archive mr-1"></i>公開前の過去戦績(一括記録・最古)</div>
+          <div class="flex items-center gap-1 flex-wrap">${seedChipsHtml}</div>
+        `;
+        container.appendChild(seedItem);
+      }
     }
 
     // 戦績の「感想・フィードバック」への返信スレッド(既存返信一覧＋返信フォーム)のHTMLを構築する
@@ -1982,9 +1982,9 @@
           <select id="match-feedback-reply-select-${matchId}" class="w-full text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">
             ${buildCommenterOptionsHtml()}
           </select>
-          <div class="flex gap-1.5">
-            <input type="text" id="match-feedback-reply-text-${matchId}" placeholder="返信を入力..." class="flex-1 text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">
-            <button type="button" onclick="submitMatchFeedbackReply('${matchId}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg shrink-0">送信</button>
+          <textarea id="match-feedback-reply-text-${matchId}" rows="3" placeholder="返信を入力..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400 resize-none"></textarea>
+          <div class="flex justify-end">
+            <button type="button" onclick="submitMatchFeedbackReply('${matchId}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg shrink-0">送信</button>
           </div>
         </div>
       `;
@@ -2128,9 +2128,9 @@
             <select id="reply-player-select-${c.id}" class="w-full text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">
               ${buildCommenterOptionsHtml()}
             </select>
-            <div class="flex gap-1.5">
-              <input type="text" id="reply-text-${c.id}" placeholder="返信を入力..." class="flex-1 text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">
-              <button type="button" onclick="submitGameCommentReply('${c.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg shrink-0">送信</button>
+            <textarea id="reply-text-${c.id}" rows="3" placeholder="返信を入力..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400 resize-none"></textarea>
+            <div class="flex justify-end">
+              <button type="button" onclick="submitGameCommentReply('${c.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg shrink-0">送信</button>
             </div>
           </div>
         `;
@@ -2232,29 +2232,30 @@
 
       const items = [];
 
-      if (gameComments.length > 0) {
-        const c = gameComments[0];
+      // 直近コメント(返信も含む) 最大3件
+      gameComments.slice(0, 3).forEach(c => {
         const author = c.playerId ? (players.find(p => p.id === c.playerId)?.name || '不明なプレイヤー') : '匿名';
         const shortComment = c.comment.length > 30 ? c.comment.slice(0, 30) + '…' : c.comment;
         items.push(`💬 ${author}さんがコメント: 「${shortComment}」`);
-      }
+      });
 
+      // 直近戦績 最大3件
       const approvedMatches = matches.filter(m => m.status === 'approved').sort((a, b) => b.createdAt - a.createdAt);
-      if (approvedMatches.length > 0) {
-        const m = approvedMatches[0];
+      approvedMatches.slice(0, 3).forEach(m => {
         const winner = players.find(p => p.id === m.winnerId);
         items.push(`🏆 ${m.date}の対戦で${winner ? winner.name : '不明'}さんが優勝！`);
-      }
+      });
 
+      // 直近登録者 最大3件(登録が新しい順)
       const approvedPlayers = players.filter(p => p.status === 'approved');
-      if (approvedPlayers.length > 0) {
-        const newest = approvedPlayers[approvedPlayers.length - 1];
-        items.push(`🎉 ${newest.name}さんが新しく登録されました！`);
-      }
+      approvedPlayers.slice(-3).reverse().forEach(p => {
+        items.push(`🎉 ${p.name}さんが新しく登録されました！`);
+      });
 
-      if (adminNewsList.length > 0) {
-        items.push(`📢 ${adminNewsList[0].message}`);
-      }
+      // 管理者からのニュース 最大3件
+      adminNewsList.slice(0, 3).forEach(n => {
+        items.push(`📢 ${n.message}`);
+      });
 
       if (items.length === 0) {
         track.classList.remove('news-ticker-scroll');
