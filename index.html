@@ -3290,6 +3290,7 @@
             <div class="flex flex-col sm:flex-row justify-between gap-3 items-start sm:items-center">
               <div class="flex items-center gap-3 flex-wrap">
                 <span class="bg-pink-100 text-pink-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">編集申請</span>
+                ${player.editPending.userId ? `<span class="bg-indigo-100 text-indigo-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">デジタル版アカウント連携希望</span>` : ''}
                 <span class="text-xs text-slate-800 font-bold">対象: ${player.name}さん</span>
               </div>
               <div class="flex gap-2 w-full sm:w-auto shrink-0">
@@ -3468,12 +3469,19 @@
       const player = players.find(p => p.id === playerId);
       if (!player || !player.editPending) return;
       const editData = player.editPending;
-      const { error } = await supabaseClient.from('players').update({
+      const updatePayload = {
         name: editData.name,
         discord_id: editData.discordId,
         avatar_url: editData.avatar,
         edit_pending: null
-      }).eq('id', playerId);
+      };
+      // デジタル版アプリからの「既存プレイヤーとアカウントを連携したい」申請
+      // （editPendingにuserIdが含まれる、通常のプロフィール編集申請と同じ承認待ちキューに
+      // 相乗りしている）。承認時にuser_id列へ書き込むことで、実際にGoogleアカウントと
+      // このプレイヤー行が紐づく。通常のプロフィール編集申請にはuserIdは含まれないため
+      // 影響しない。
+      if (editData.userId) updatePayload.user_id = editData.userId;
+      const { error } = await supabaseClient.from('players').update(updatePayload).eq('id', playerId);
       if (error) {
         logDebugEntry(error);
         showAppWarningModal("承認処理に失敗しました。通信環境を確認してください。");
