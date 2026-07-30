@@ -582,6 +582,24 @@
             </div>
           </div>
 
+          <!-- プレイヤー統合（マージ）ツール -->
+          <div class="border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-code-merge text-rose-600"></i> プレイヤー統合（マージ）
+            </h3>
+            <p class="text-xs text-gray-500 mb-2 leading-relaxed">未連携で二重登録されたプレイヤー等を1つにまとめます。<b>統合元</b>の全戦績（試合の参加・勝利、初期戦績）を<b>統合先</b>へ移し、統合元は削除します。<span class="text-rose-600 font-bold">この操作は取り消せません。</span></p>
+            <div class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+              <label class="flex-1 text-xs text-slate-600">統合元（消える方）
+                <select id="merge-source-select" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+              </label>
+              <div class="text-slate-400 self-center pb-1"><i class="fa-solid fa-arrow-right"></i></div>
+              <label class="flex-1 text-xs text-slate-600">統合先（残る方）
+                <select id="merge-target-select" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+              </label>
+              <button onclick="runMergeStatsPlayers()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2 px-4 rounded-lg shadow transition shrink-0">統合する</button>
+            </div>
+          </div>
+
           <!-- アクセスログセクション -->
           <div class="border-t border-dashed border-gray-100 pt-5">
             <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
@@ -1358,6 +1376,8 @@
         date: row.date,
         members: row.members,
         winnerId: row.winner_id,
+        // ゲスト（デジタル版の匿名参加者、プレイヤー未登録）の表示名。membersとは別。
+        guestNames: row.guest_names || [],
         proofImage: row.proof_image_url || "",
         status: row.status,
         feedback: row.feedback || "",
@@ -1938,6 +1958,10 @@
           const avatarHtml = mp ? getAvatarElementHtml(mp, 5) : '';
           return `<span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5">${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${name}</span></span>`;
         }).join(' ');
+        // ゲスト（デジタル版の匿名参加者、プレイヤー未登録）を「ゲスト（名前）」チップで併記。
+        const guestChipsHtml = (match.guestNames || []).map(gn =>
+          `<span class="inline-flex items-center gap-1 bg-slate-100 border border-dashed border-slate-300 rounded-full px-2 py-0.5"><i class="fa-solid fa-user text-slate-300 text-[9px]"></i><span class="text-[10px] text-slate-400 font-bold">ゲスト（${gn}）</span></span>`
+        ).join(' ');
 
         const proofThumbHtml = match.proofImage
           ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
@@ -1963,9 +1987,9 @@
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5 mb-1 flex-wrap">
               <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
-              <span class="text-xs text-amber-700 font-bold">👑 ${winner ? winner.name : "不明"}</span>
+              <span class="text-xs text-amber-700 font-bold">👑 ${winner ? winner.name : ((match.guestNames || []).length ? "ゲスト" : "不明")}</span>
             </div>
-            <div class="flex items-center gap-1 flex-wrap">${memberChipsHtml}</div>
+            <div class="flex items-center gap-1 flex-wrap">${memberChipsHtml}${guestChipsHtml ? ' ' + guestChipsHtml : ''}</div>
             ${feedbackHtml}
             ${feedbackRepliesHtml}
           </div>
@@ -3176,8 +3200,79 @@
       renderMemberSelection(Object.values(stats));
     }
 
+    // --- プレイヤー統合（マージ）ツール ---
+    // デジタル版で未連携のまま新規登録されたプレイヤーを、既存の本人プレイヤーへ統合する
+    // （ユーザー要望）。統合元(source)の試合参加・勝利・初期戦績をすべて統合先(target)へ
+    // 移し、統合元を削除する。破壊的操作のため確認モーダルを挟む。
+    function renderMergeToolSelects() {
+      const src = document.getElementById('merge-source-select');
+      const tgt = document.getElementById('merge-target-select');
+      if (!src || !tgt) return;
+      const opts = players
+        .filter(p => p.status === 'approved')
+        .slice()
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'))
+        .map(p => `<option value="${p.id}">${p.name}（${p.seedMatchesCount}戦）</option>`)
+        .join('');
+      const prevSrc = src.value, prevTgt = tgt.value;
+      src.innerHTML = `<option value="">選択…</option>` + opts;
+      tgt.innerHTML = `<option value="">選択…</option>` + opts;
+      src.value = prevSrc; tgt.value = prevTgt;
+    }
+    async function mergeStatsPlayers(sourceId, targetId) {
+      // 1. 全matchesで sourceId を targetId に置き換える（members配列 + winner_id）
+      const { data: allMatches, error: mErr } = await supabaseClient.from('matches').select('id, members, winner_id');
+      if (mErr) throw mErr;
+      for (const m of allMatches || []) {
+        const members = m.members || [];
+        if (!members.includes(sourceId) && m.winner_id !== sourceId) continue;
+        const newMembers = [...new Set(members.map(id => (id === sourceId ? targetId : id)))];
+        const newWinner = m.winner_id === sourceId ? targetId : m.winner_id;
+        const { error } = await supabaseClient.from('matches').update({ members: newMembers, winner_id: newWinner }).eq('id', m.id);
+        if (error) throw error;
+      }
+      // 2. 初期戦績(seed)を統合先へ加算
+      const source = players.find(p => p.id === sourceId);
+      const target = players.find(p => p.id === targetId);
+      if (source && target) {
+        const { error } = await supabaseClient.from('players').update({
+          seed_matches_count: (target.seedMatchesCount || 0) + (source.seedMatchesCount || 0),
+          seed_wins_count: (target.seedWinsCount || 0) + (source.seedWinsCount || 0),
+        }).eq('id', targetId);
+        if (error) throw error;
+      }
+      // 3. 統合元を削除
+      const { error: delErr } = await supabaseClient.from('players').delete().eq('id', sourceId);
+      if (delErr) throw delErr;
+    }
+    async function runMergeStatsPlayers() {
+      const sourceId = document.getElementById('merge-source-select').value;
+      const targetId = document.getElementById('merge-target-select').value;
+      if (!sourceId || !targetId) { showAppWarningModal('統合元と統合先を選んでください。'); return; }
+      if (sourceId === targetId) { showAppWarningModal('統合元と統合先が同じです。'); return; }
+      const source = players.find(p => p.id === sourceId);
+      const target = players.find(p => p.id === targetId);
+      showAppConfirmModal(
+        'プレイヤーを統合しますか？',
+        `「${source?.name}」の全戦績を「${target?.name}」へ移し、「${source?.name}」を削除します。この操作は取り消せません。`,
+        true,
+        async () => {
+          try {
+            await mergeStatsPlayers(sourceId, targetId);
+            await loadData();
+            renderAll();
+            showAppWarningModal('プレイヤーの統合が完了しました。');
+          } catch (err) {
+            logDebugEntry(err);
+            showAppWarningModal('統合中にエラーが発生しました。もう一度お試しください。');
+          }
+        }
+      );
+    }
+
     // --- 管理者コンソールのレンダリング ---
     function renderAdminConsole() {
+      renderMergeToolSelects();
       // 1. 承認待ち戦績リストの構築
       const pendingContainer = document.getElementById('pending-matches-container');
       const pendingList = matches.filter(m => m.status === 'pending');
