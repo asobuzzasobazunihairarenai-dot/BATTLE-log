@@ -469,6 +469,23 @@
                   <!-- JSで動的構築 -->
                 </div>
               </div>
+
+              <!-- 勝利数ランキング パネル -->
+              <div class="bg-gradient-to-br from-emerald-600 via-emerald-800 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
+                <div class="flex justify-center mb-2">
+                  <span class="text-[10px] font-black text-emerald-100 bg-white/15 px-3 py-1 rounded-full uppercase tracking-widest">🥊 勝利数部門</span>
+                </div>
+                <div class="flex items-center justify-center gap-2 mb-4">
+                  <i class="fa-solid fa-hand-fist text-emerald-300 text-lg"></i>
+                  <h3 class="text-sm font-black text-white uppercase tracking-widest">勝利数ランキング TOP3</h3>
+                  <button onclick="openRankingInfoModal('wincount')" class="text-white/60 hover:text-white transition" title="ランキング参加条件について">
+                    <i class="fa-solid fa-circle-info"></i>
+                  </button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="wincount-ranking-container">
+                  <!-- JSで動的構築 -->
+                </div>
+              </div>
             </div>
 
             <!-- 登録プレイヤー戦績一覧 (フル幅) -->
@@ -579,6 +596,24 @@
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+
+          <!-- プレイヤー統合（マージ）ツール -->
+          <div class="border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-code-merge text-rose-600"></i> プレイヤー統合（マージ）
+            </h3>
+            <p class="text-xs text-gray-500 mb-2 leading-relaxed">未連携で二重登録されたプレイヤー等を1つにまとめます。<b>統合元</b>の全戦績（試合の参加・勝利、初期戦績）を<b>統合先</b>へ移し、統合元は削除します。<span class="text-rose-600 font-bold">この操作は取り消せません。</span></p>
+            <div class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+              <label class="flex-1 text-xs text-slate-600">統合元（消える方）
+                <select id="merge-source-select" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+              </label>
+              <div class="text-slate-400 self-center pb-1"><i class="fa-solid fa-arrow-right"></i></div>
+              <label class="flex-1 text-xs text-slate-600">統合先（残る方）
+                <select id="merge-target-select" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+              </label>
+              <button onclick="runMergeStatsPlayers()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2 px-4 rounded-lg shadow transition shrink-0">統合する</button>
             </div>
           </div>
 
@@ -1104,7 +1139,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607191655";
+    const BUILD_VERSION = "202607310300";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1182,6 +1217,10 @@
       if (type === 'matchcount') {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>対戦数ランキングについて`;
         descEl.innerHTML = `対戦数ランキングには<b>参加基準はありません</b>。承認された戦績の中で、単純に対戦数が多い順にランクインします。<br><br><b>同順位の決め方:</b> ①対戦数 → ②勝利数 → ③勝率 の順で比較し、すべて同じ場合は同順位として併記します。`;
+        detailEl.classList.add('hidden');
+      } else if (type === 'wincount') {
+        titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>勝利数ランキングについて`;
+        descEl.innerHTML = `勝利数ランキングには<b>参加基準はありません</b>。承認された戦績の中で、単純に勝利数が多い順にランクインします。<br><br><b>同順位の決め方:</b> ①勝利数 → ②勝率 → ③対戦数 の順で比較し、すべて同じ場合は同順位として併記します。`;
         detailEl.classList.add('hidden');
       } else {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>勝率ランキングについて`;
@@ -1358,6 +1397,8 @@
         date: row.date,
         members: row.members,
         winnerId: row.winner_id,
+        // ゲスト（デジタル版の匿名参加者、プレイヤー未登録）の表示名。membersとは別。
+        guestNames: row.guest_names || [],
         proofImage: row.proof_image_url || "",
         status: row.status,
         feedback: row.feedback || "",
@@ -1879,6 +1920,7 @@
 
       renderTop3Ranking(approvedStatsList);
       renderMatchCountRanking(approvedStatsList);
+      renderWinCountRanking(approvedStatsList);
       renderPlayersGrid(approvedStatsList);
 
       // メンバー選択画面（一般用）には、承認待ちプレイヤーも含めて表示
@@ -1938,6 +1980,10 @@
           const avatarHtml = mp ? getAvatarElementHtml(mp, 5) : '';
           return `<span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5">${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${name}</span></span>`;
         }).join(' ');
+        // ゲスト（デジタル版の匿名参加者、プレイヤー未登録）を「ゲスト（名前）」チップで併記。
+        const guestChipsHtml = (match.guestNames || []).map(gn =>
+          `<span class="inline-flex items-center gap-1 bg-slate-100 border border-dashed border-slate-300 rounded-full px-2 py-0.5"><i class="fa-solid fa-user text-slate-300 text-[9px]"></i><span class="text-[10px] text-slate-400 font-bold">ゲスト（${gn}）</span></span>`
+        ).join(' ');
 
         const proofThumbHtml = match.proofImage
           ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
@@ -1951,7 +1997,11 @@
         const feedbackHtml = hasFeedback
           ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${buildExpandableTextHtml(match.feedback, 'history-feedback-' + match.id)}</p>`
           : '';
-        const feedbackRepliesHtml = hasFeedback ? renderMatchFeedbackRepliesHtml(match.id) : '';
+        // デジタル版では対戦終了時に参加者全員がコメントできる（勝者コメントをfeedbackに
+        // 入れず、全員がこの返信スレッドにコメントを投稿する方式）。そのため、勝者feedbackが
+        // 無くても、この試合へのコメント(返信)が1件でもあれば返信スレッドを表示する。
+        const hasReplies = (typeof matchFeedbackReplies !== 'undefined' ? matchFeedbackReplies : []).some(r => r.matchId === match.id);
+        const feedbackRepliesHtml = (hasFeedback || hasReplies) ? renderMatchFeedbackRepliesHtml(match.id) : '';
 
         const item = document.createElement('div');
         item.className = "border border-slate-200/80 rounded-xl p-3 flex gap-3 items-start";
@@ -1963,9 +2013,9 @@
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-1.5 mb-1 flex-wrap">
               <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
-              <span class="text-xs text-amber-700 font-bold">👑 ${winner ? winner.name : "不明"}</span>
+              <span class="text-xs text-amber-700 font-bold">👑 ${winner ? winner.name : ((match.guestNames || []).length ? "ゲスト" : "不明")}</span>
             </div>
-            <div class="flex items-center gap-1 flex-wrap">${memberChipsHtml}</div>
+            <div class="flex items-center gap-1 flex-wrap">${memberChipsHtml}${guestChipsHtml ? ' ' + guestChipsHtml : ''}</div>
             ${feedbackHtml}
             ${feedbackRepliesHtml}
           </div>
@@ -2634,6 +2684,41 @@
       `);
     }
 
+    // 勝利数ランキング TOP3 (参加基準なし。単純に勝利数が多い順)
+    function renderWinCountRanking(approvedStatsList) {
+      const container = document.getElementById('wincount-ranking-container');
+      if (!container) return;
+      container.innerHTML = "";
+
+      // 運営枠(isStaff)はランキング対象外。順位: 勝利数 → 勝率 → 対戦数 の順で比較し、すべて同じなら同順位として併記する
+      const sorted = [...approvedStatsList].filter(p => !p.isStaff).sort((a, b) => {
+        if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount;
+        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+        return b.matchesCount - a.matchesCount;
+      });
+
+      const eligible = sorted.filter(p => p.winsCount > 0);
+      const ranked = selectTopByDenseRank(eligible, (a, b) =>
+        a.winsCount === b.winsCount && a.winRate === b.winRate && a.matchesCount === b.matchesCount
+      , 3);
+
+      if (ranked.length === 0) {
+        container.innerHTML = `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">承認済みの勝利データがまだありません。</p>`;
+        return;
+      }
+
+      renderRankGroupCards(container, ranked, (player) => `
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝利</span>
+          <span class="font-mono font-black text-emerald-300 text-sm">${player.winsCount}</span>
+        </div>
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝率</span>
+          <span class="font-mono font-bold text-white text-sm">${player.winRate}%</span>
+        </div>
+      `);
+    }
+
     // プレイヤー個別カードの構築（多角的なソートロジックを搭載）
     function renderPlayersGrid(approvedStatsList) {
       const container = document.getElementById('players-grid-container');
@@ -3176,8 +3261,79 @@
       renderMemberSelection(Object.values(stats));
     }
 
+    // --- プレイヤー統合（マージ）ツール ---
+    // デジタル版で未連携のまま新規登録されたプレイヤーを、既存の本人プレイヤーへ統合する
+    // （ユーザー要望）。統合元(source)の試合参加・勝利・初期戦績をすべて統合先(target)へ
+    // 移し、統合元を削除する。破壊的操作のため確認モーダルを挟む。
+    function renderMergeToolSelects() {
+      const src = document.getElementById('merge-source-select');
+      const tgt = document.getElementById('merge-target-select');
+      if (!src || !tgt) return;
+      const opts = players
+        .filter(p => p.status === 'approved')
+        .slice()
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'))
+        .map(p => `<option value="${p.id}">${p.name}（${p.seedMatchesCount}戦）</option>`)
+        .join('');
+      const prevSrc = src.value, prevTgt = tgt.value;
+      src.innerHTML = `<option value="">選択…</option>` + opts;
+      tgt.innerHTML = `<option value="">選択…</option>` + opts;
+      src.value = prevSrc; tgt.value = prevTgt;
+    }
+    async function mergeStatsPlayers(sourceId, targetId) {
+      // 1. 全matchesで sourceId を targetId に置き換える（members配列 + winner_id）
+      const { data: allMatches, error: mErr } = await supabaseClient.from('matches').select('id, members, winner_id');
+      if (mErr) throw mErr;
+      for (const m of allMatches || []) {
+        const members = m.members || [];
+        if (!members.includes(sourceId) && m.winner_id !== sourceId) continue;
+        const newMembers = [...new Set(members.map(id => (id === sourceId ? targetId : id)))];
+        const newWinner = m.winner_id === sourceId ? targetId : m.winner_id;
+        const { error } = await supabaseClient.from('matches').update({ members: newMembers, winner_id: newWinner }).eq('id', m.id);
+        if (error) throw error;
+      }
+      // 2. 初期戦績(seed)を統合先へ加算
+      const source = players.find(p => p.id === sourceId);
+      const target = players.find(p => p.id === targetId);
+      if (source && target) {
+        const { error } = await supabaseClient.from('players').update({
+          seed_matches_count: (target.seedMatchesCount || 0) + (source.seedMatchesCount || 0),
+          seed_wins_count: (target.seedWinsCount || 0) + (source.seedWinsCount || 0),
+        }).eq('id', targetId);
+        if (error) throw error;
+      }
+      // 3. 統合元を削除
+      const { error: delErr } = await supabaseClient.from('players').delete().eq('id', sourceId);
+      if (delErr) throw delErr;
+    }
+    async function runMergeStatsPlayers() {
+      const sourceId = document.getElementById('merge-source-select').value;
+      const targetId = document.getElementById('merge-target-select').value;
+      if (!sourceId || !targetId) { showAppWarningModal('統合元と統合先を選んでください。'); return; }
+      if (sourceId === targetId) { showAppWarningModal('統合元と統合先が同じです。'); return; }
+      const source = players.find(p => p.id === sourceId);
+      const target = players.find(p => p.id === targetId);
+      showAppConfirmModal(
+        'プレイヤーを統合しますか？',
+        `「${source?.name}」の全戦績を「${target?.name}」へ移し、「${source?.name}」を削除します。この操作は取り消せません。`,
+        true,
+        async () => {
+          try {
+            await mergeStatsPlayers(sourceId, targetId);
+            await loadData();
+            renderAll();
+            showAppWarningModal('プレイヤーの統合が完了しました。');
+          } catch (err) {
+            logDebugEntry(err);
+            showAppWarningModal('統合中にエラーが発生しました。もう一度お試しください。');
+          }
+        }
+      );
+    }
+
     // --- 管理者コンソールのレンダリング ---
     function renderAdminConsole() {
+      renderMergeToolSelects();
       // 1. 承認待ち戦績リストの構築
       const pendingContainer = document.getElementById('pending-matches-container');
       const pendingList = matches.filter(m => m.status === 'pending');
@@ -3290,7 +3446,6 @@
             <div class="flex flex-col sm:flex-row justify-between gap-3 items-start sm:items-center">
               <div class="flex items-center gap-3 flex-wrap">
                 <span class="bg-pink-100 text-pink-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">編集申請</span>
-                ${player.editPending.userId ? `<span class="bg-indigo-100 text-indigo-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase">デジタル版アカウント連携希望</span>` : ''}
                 <span class="text-xs text-slate-800 font-bold">対象: ${player.name}さん</span>
               </div>
               <div class="flex gap-2 w-full sm:w-auto shrink-0">
@@ -3469,19 +3624,12 @@
       const player = players.find(p => p.id === playerId);
       if (!player || !player.editPending) return;
       const editData = player.editPending;
-      const updatePayload = {
+      const { error } = await supabaseClient.from('players').update({
         name: editData.name,
         discord_id: editData.discordId,
         avatar_url: editData.avatar,
         edit_pending: null
-      };
-      // デジタル版アプリからの「既存プレイヤーとアカウントを連携したい」申請
-      // （editPendingにuserIdが含まれる、通常のプロフィール編集申請と同じ承認待ちキューに
-      // 相乗りしている）。承認時にuser_id列へ書き込むことで、実際にGoogleアカウントと
-      // このプレイヤー行が紐づく。通常のプロフィール編集申請にはuserIdは含まれないため
-      // 影響しない。
-      if (editData.userId) updatePayload.user_id = editData.userId;
-      const { error } = await supabaseClient.from('players').update(updatePayload).eq('id', playerId);
+      }).eq('id', playerId);
       if (error) {
         logDebugEntry(error);
         showAppWarningModal("承認処理に失敗しました。通信環境を確認してください。");

@@ -469,6 +469,23 @@
                   <!-- JSで動的構築 -->
                 </div>
               </div>
+
+              <!-- 勝利数ランキング パネル -->
+              <div class="bg-gradient-to-br from-emerald-600 via-emerald-800 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
+                <div class="flex justify-center mb-2">
+                  <span class="text-[10px] font-black text-emerald-100 bg-white/15 px-3 py-1 rounded-full uppercase tracking-widest">🥊 勝利数部門</span>
+                </div>
+                <div class="flex items-center justify-center gap-2 mb-4">
+                  <i class="fa-solid fa-hand-fist text-emerald-300 text-lg"></i>
+                  <h3 class="text-sm font-black text-white uppercase tracking-widest">勝利数ランキング TOP3</h3>
+                  <button onclick="openRankingInfoModal('wincount')" class="text-white/60 hover:text-white transition" title="ランキング参加条件について">
+                    <i class="fa-solid fa-circle-info"></i>
+                  </button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="wincount-ranking-container">
+                  <!-- JSで動的構築 -->
+                </div>
+              </div>
             </div>
 
             <!-- 登録プレイヤー戦績一覧 (フル幅) -->
@@ -1122,7 +1139,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607191655";
+    const BUILD_VERSION = "202607310300";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1200,6 +1217,10 @@
       if (type === 'matchcount') {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>対戦数ランキングについて`;
         descEl.innerHTML = `対戦数ランキングには<b>参加基準はありません</b>。承認された戦績の中で、単純に対戦数が多い順にランクインします。<br><br><b>同順位の決め方:</b> ①対戦数 → ②勝利数 → ③勝率 の順で比較し、すべて同じ場合は同順位として併記します。`;
+        detailEl.classList.add('hidden');
+      } else if (type === 'wincount') {
+        titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>勝利数ランキングについて`;
+        descEl.innerHTML = `勝利数ランキングには<b>参加基準はありません</b>。承認された戦績の中で、単純に勝利数が多い順にランクインします。<br><br><b>同順位の決め方:</b> ①勝利数 → ②勝率 → ③対戦数 の順で比較し、すべて同じ場合は同順位として併記します。`;
         detailEl.classList.add('hidden');
       } else {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>勝率ランキングについて`;
@@ -1899,6 +1920,7 @@
 
       renderTop3Ranking(approvedStatsList);
       renderMatchCountRanking(approvedStatsList);
+      renderWinCountRanking(approvedStatsList);
       renderPlayersGrid(approvedStatsList);
 
       // メンバー選択画面（一般用）には、承認待ちプレイヤーも含めて表示
@@ -2654,6 +2676,41 @@
         <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
           <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">対戦</span>
           <span class="font-mono font-black text-orange-300 text-sm">${player.matchesCount}</span>
+        </div>
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝率</span>
+          <span class="font-mono font-bold text-white text-sm">${player.winRate}%</span>
+        </div>
+      `);
+    }
+
+    // 勝利数ランキング TOP3 (参加基準なし。単純に勝利数が多い順)
+    function renderWinCountRanking(approvedStatsList) {
+      const container = document.getElementById('wincount-ranking-container');
+      if (!container) return;
+      container.innerHTML = "";
+
+      // 運営枠(isStaff)はランキング対象外。順位: 勝利数 → 勝率 → 対戦数 の順で比較し、すべて同じなら同順位として併記する
+      const sorted = [...approvedStatsList].filter(p => !p.isStaff).sort((a, b) => {
+        if (b.winsCount !== a.winsCount) return b.winsCount - a.winsCount;
+        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+        return b.matchesCount - a.matchesCount;
+      });
+
+      const eligible = sorted.filter(p => p.winsCount > 0);
+      const ranked = selectTopByDenseRank(eligible, (a, b) =>
+        a.winsCount === b.winsCount && a.winRate === b.winRate && a.matchesCount === b.matchesCount
+      , 3);
+
+      if (ranked.length === 0) {
+        container.innerHTML = `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">承認済みの勝利データがまだありません。</p>`;
+        return;
+      }
+
+      renderRankGroupCards(container, ranked, (player) => `
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝利</span>
+          <span class="font-mono font-black text-emerald-300 text-sm">${player.winsCount}</span>
         </div>
         <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
           <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝率</span>
