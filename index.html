@@ -607,11 +607,13 @@
             <p class="text-xs text-gray-500 mb-2 leading-relaxed">未連携で二重登録されたプレイヤー等を1つにまとめます。<b>統合元</b>の全戦績（試合の参加・勝利、初期戦績）を<b>統合先</b>へ移し、統合元は削除します。<span class="text-rose-600 font-bold">この操作は取り消せません。</span></p>
             <div class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
               <label class="flex-1 text-xs text-slate-600">統合元（消える方）
-                <select id="merge-source-select" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+                <select id="merge-source-select" onchange="updateMergePreview('merge-source-select','merge-source-preview')" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+                <div id="merge-source-preview"></div>
               </label>
               <div class="text-slate-400 self-center pb-1"><i class="fa-solid fa-arrow-right"></i></div>
               <label class="flex-1 text-xs text-slate-600">統合先（残る方）
-                <select id="merge-target-select" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+                <select id="merge-target-select" onchange="updateMergePreview('merge-target-select','merge-target-preview')" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+                <div id="merge-target-preview"></div>
               </label>
               <button onclick="runMergeStatsPlayers()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2 px-4 rounded-lg shadow transition shrink-0">統合する</button>
             </div>
@@ -1139,7 +1141,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607310300";
+    const BUILD_VERSION = "202608020129";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1455,6 +1457,8 @@
         matchId: row.match_id,
         playerId: row.player_id || null,
         comment: row.comment,
+        // 個別コメントへの返信（ネスト）。null＝トップレベルの「みんなのコメント」。
+        parentReplyId: row.parent_reply_id || null,
         createdAt: Number(row.created_at)
       };
     }
@@ -1464,6 +1468,7 @@
         match_id: r.matchId,
         player_id: r.playerId || null,
         comment: r.comment,
+        parent_reply_id: r.parentReplyId || null,
         created_at: r.createdAt
       };
     }
@@ -1997,11 +2002,9 @@
         const feedbackHtml = hasFeedback
           ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${buildExpandableTextHtml(match.feedback, 'history-feedback-' + match.id)}</p>`
           : '';
-        // デジタル版では対戦終了時に参加者全員がコメントできる（勝者コメントをfeedbackに
-        // 入れず、全員がこの返信スレッドにコメントを投稿する方式）。そのため、勝者feedbackが
-        // 無くても、この試合へのコメント(返信)が1件でもあれば返信スレッドを表示する。
-        const hasReplies = (typeof matchFeedbackReplies !== 'undefined' ? matchFeedbackReplies : []).some(r => r.matchId === match.id);
-        const feedbackRepliesHtml = (hasFeedback || hasReplies) ? renderMatchFeedbackRepliesHtml(match.id) : '';
+        // デジタル版では対戦終了時に参加者全員がコメントできる。誰でもいつでもコメント／
+        // 個別返信できるよう、コメントが無い試合でも常に「みんなのコメント」欄を表示する。
+        const feedbackRepliesHtml = renderMatchFeedbackRepliesHtml(match.id);
 
         const item = document.createElement('div');
         item.className = "border border-slate-200/80 rounded-xl p-3 flex gap-3 items-start";
@@ -2040,13 +2043,19 @@
       }
     }
 
-    // 戦績の「感想・フィードバック」への返信スレッド(既存返信一覧＋返信フォーム)のHTMLを構築する
+    // 1試合（＝1枚のスクショ）に対して、参加者全員のコメントを一覧で並べる（「みんなのコメント」）。
+    // 各コメントには個別に返信でき、返信はそのコメントの下にネスト表示される（game_commentsと
+    // 同じ1段ネスト）。parentReplyIdがnullのものがトップレベル（みんなのコメント）、非nullが
+    // そのコメントへの返信。デジタル版が対局終了時に投稿する参加者コメントはparentReplyId=null。
     function renderMatchFeedbackRepliesHtml(matchId) {
-      const replies = matchFeedbackReplies.filter(r => r.matchId === matchId);
-      const repliesHtml = replies.map(r => {
+      const all = matchFeedbackReplies.filter(r => r.matchId === matchId);
+      const topLevel = all.filter(r => !r.parentReplyId).sort((a, b) => a.createdAt - b.createdAt);
+
+      // 1件分（返信カード）の共通HTML。
+      const replyCardHtml = (r) => {
         const time = new Date(r.createdAt).toLocaleString('ja-JP');
-        const deleteBtnHtml = currentRole === 'admin'
-          ? `<button onclick="triggerDeleteMatchFeedbackReplyConfirm('${r.id}', '${matchId}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="返信を削除"><i class="fa-solid fa-trash-can text-xs"></i></button>`
+        const del = currentRole === 'admin'
+          ? `<button onclick="triggerDeleteMatchFeedbackReplyConfirm('${r.id}', '${matchId}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="削除"><i class="fa-solid fa-trash-can text-xs"></i></button>`
           : '';
         return `
           <div class="bg-white border border-slate-100 rounded-lg p-2 flex justify-between items-start gap-2">
@@ -2057,40 +2066,69 @@
               </div>
               <p class="text-[11px] text-slate-600 whitespace-pre-wrap break-words">${r.comment}</p>
             </div>
-            ${deleteBtnHtml}
+            ${del}
+          </div>
+        `;
+      };
+
+      const commentsHtml = topLevel.map(c => {
+        const time = new Date(c.createdAt).toLocaleString('ja-JP');
+        const del = currentRole === 'admin'
+          ? `<button onclick="triggerDeleteMatchFeedbackReplyConfirm('${c.id}', '${matchId}')" class="text-slate-300 hover:text-rose-500 transition shrink-0" title="削除"><i class="fa-solid fa-trash-can text-xs"></i></button>`
+          : '';
+        const children = all.filter(r => r.parentReplyId === c.id).sort((a, b) => a.createdAt - b.createdAt);
+        const childrenHtml = children.map(replyCardHtml).join('');
+        return `
+          <div class="bg-white border border-slate-100 rounded-lg p-2">
+            <div class="flex justify-between items-start gap-2">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                  <span class="text-[11px] font-bold text-slate-700">${getCommentAuthorName(c)}</span>
+                  <span class="text-[9px] text-slate-400 font-mono">${time}</span>
+                </div>
+                <p class="text-[11px] text-slate-600 whitespace-pre-wrap break-words">${c.comment}</p>
+                <button type="button" onclick="toggleMatchReplyForm('${c.id}')" class="text-[10px] text-indigo-500 hover:text-indigo-700 font-bold mt-1"><i class="fa-solid fa-reply mr-0.5"></i>返信する</button>
+              </div>
+              ${del}
+            </div>
+            ${childrenHtml ? `<div class="mt-1.5 pl-3 border-l-2 border-slate-200 space-y-1.5">${childrenHtml}</div>` : ''}
+            <div id="match-reply-form-${c.id}" class="hidden mt-1.5 pl-3 border-l-2 border-indigo-100 space-y-1.5">
+              <select id="match-reply-select-${c.id}" class="w-full text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">${buildCommenterOptionsHtml()}</select>
+              <textarea id="match-reply-text-${c.id}" rows="2" placeholder="返信を入力..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400 resize-none"></textarea>
+              <div class="flex justify-end"><button type="button" onclick="submitMatchReply('${matchId}', '${c.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg shrink-0">送信</button></div>
+            </div>
           </div>
         `;
       }).join('');
 
       return `
-        ${repliesHtml ? `<div class="mt-1.5 pl-3 border-l-2 border-slate-200 space-y-1.5">${repliesHtml}</div>` : ''}
-        <button type="button" onclick="toggleMatchFeedbackReplyForm('${matchId}')" class="text-[10px] text-indigo-500 hover:text-indigo-700 font-bold mt-1 ml-1">
-          <i class="fa-solid fa-reply mr-0.5"></i>返信する
-        </button>
-        <div id="match-feedback-reply-form-${matchId}" class="hidden mt-1.5 pl-3 border-l-2 border-indigo-100 space-y-1.5">
-          <select id="match-feedback-reply-select-${matchId}" class="w-full text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">
-            ${buildCommenterOptionsHtml()}
-          </select>
-          <textarea id="match-feedback-reply-text-${matchId}" rows="3" placeholder="返信を入力..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400 resize-none"></textarea>
-          <div class="flex justify-end">
-            <button type="button" onclick="submitMatchFeedbackReply('${matchId}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg shrink-0">送信</button>
+        <div class="mt-2">
+          <div class="text-[10px] font-bold text-slate-400 mb-1"><i class="fa-solid fa-comments mr-1"></i>みんなのコメント</div>
+          ${commentsHtml ? `<div class="space-y-1.5">${commentsHtml}</div>` : `<p class="text-[10px] text-slate-300 italic mb-1">まだコメントはありません。</p>`}
+          <button type="button" onclick="toggleMatchReplyForm('add-${matchId}')" class="text-[10px] text-indigo-500 hover:text-indigo-700 font-bold mt-1"><i class="fa-solid fa-plus mr-0.5"></i>コメントを追加</button>
+          <div id="match-reply-form-add-${matchId}" class="hidden mt-1.5 space-y-1.5">
+            <select id="match-reply-select-add-${matchId}" class="w-full text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-1.5 outline-none focus:border-indigo-400">${buildCommenterOptionsHtml()}</select>
+            <textarea id="match-reply-text-add-${matchId}" rows="3" placeholder="コメントを入力..." class="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg p-2 outline-none focus:border-indigo-400 resize-none"></textarea>
+            <div class="flex justify-end"><button type="button" onclick="submitMatchReply('${matchId}', null)" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg shrink-0">送信</button></div>
           </div>
         </div>
       `;
     }
 
-    function toggleMatchFeedbackReplyForm(matchId) {
-      const form = document.getElementById(`match-feedback-reply-form-${matchId}`);
+    function toggleMatchReplyForm(key) {
+      const form = document.getElementById(`match-reply-form-${key}`);
       if (form) form.classList.toggle('hidden');
     }
 
-    async function submitMatchFeedbackReply(matchId) {
-      const select = document.getElementById(`match-feedback-reply-select-${matchId}`);
-      const textInput = document.getElementById(`match-feedback-reply-text-${matchId}`);
+    // parentReplyId が指定されればそのコメントへの返信、null なら試合への新規トップレベルコメント。
+    async function submitMatchReply(matchId, parentReplyId) {
+      const key = parentReplyId ? parentReplyId : `add-${matchId}`;
+      const select = document.getElementById(`match-reply-select-${key}`);
+      const textInput = document.getElementById(`match-reply-text-${key}`);
       const commentText = textInput.value.trim();
 
       if (!commentText) {
-        showAppWarningModal("返信内容を入力してください。");
+        showAppWarningModal("コメント内容を入力してください。");
         return;
       }
 
@@ -2099,25 +2137,26 @@
         matchId: matchId,
         playerId: select.value || null,
         comment: commentText,
+        parentReplyId: parentReplyId || null,
         createdAt: Date.now()
       };
 
       const { error } = await supabaseClient.from('match_feedback_replies').insert(matchFeedbackReplyToRow(newReply));
       if (error) {
         logDebugEntry(error);
-        showAppWarningModal("返信の投稿に失敗しました。通信環境を確認してください。");
+        showAppWarningModal("コメントの投稿に失敗しました。通信環境を確認してください。");
         return;
       }
 
       await loadMatchFeedbackRepliesFromDB();
       renderPublicMatchHistory();
-      showToast("返信を投稿しました。");
+      showToast("コメントを投稿しました。");
     }
 
     function triggerDeleteMatchFeedbackReplyConfirm(replyId, matchId) {
       showAppConfirmModal(
-        "返信の削除",
-        "この返信を削除しますか？",
+        "コメントの削除",
+        "このコメントを削除しますか？（返信も一緒に削除されます）",
         true,
         async function() {
           const { error } = await supabaseClient.from('match_feedback_replies').delete().eq('id', replyId);
@@ -3269,16 +3308,54 @@
       const src = document.getElementById('merge-source-select');
       const tgt = document.getElementById('merge-target-select');
       if (!src || !tgt) return;
+      // 「(●戦)」には初期戦績(seed)だけでなく実際の対戦数も合算した数値を使う
+      const stats = computePlayerStats();
       const opts = players
         .filter(p => p.status === 'approved')
         .slice()
         .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'))
-        .map(p => `<option value="${p.id}">${p.name}（${p.seedMatchesCount}戦）</option>`)
+        .map(p => {
+          const matchesCount = stats[p.id] ? stats[p.id].matchesCount : 0;
+          return `<option value="${p.id}">${p.name}（${matchesCount}戦）</option>`;
+        })
         .join('');
       const prevSrc = src.value, prevTgt = tgt.value;
       src.innerHTML = `<option value="">選択…</option>` + opts;
       tgt.innerHTML = `<option value="">選択…</option>` + opts;
       src.value = prevSrc; tgt.value = prevTgt;
+      updateMergePreview('merge-source-select', 'merge-source-preview');
+      updateMergePreview('merge-target-select', 'merge-target-preview');
+    }
+
+    // 選択したプレイヤーのアバター・戦績をプレビュー表示する (統合ミス防止)
+    function updateMergePreview(selectId, previewId) {
+      const select = document.getElementById(selectId);
+      const preview = document.getElementById(previewId);
+      if (!select || !preview) return;
+
+      const playerId = select.value;
+      if (!playerId) {
+        preview.innerHTML = '';
+        return;
+      }
+
+      const stats = computePlayerStats();
+      const s = stats[playerId];
+      if (!s) {
+        preview.innerHTML = '';
+        return;
+      }
+
+      const avatarHtml = getAvatarElementHtml(s, 9);
+      preview.innerHTML = `
+        <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2 mt-1.5">
+          ${avatarHtml}
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-bold text-slate-700 truncate">${s.name}</div>
+            <div class="text-[10px] text-slate-400 font-mono">対戦${s.matchesCount} / 勝利${s.winsCount} / 勝率${s.winRate}%</div>
+          </div>
+        </div>
+      `;
     }
     async function mergeStatsPlayers(sourceId, targetId) {
       // 1. 全matchesで sourceId を targetId に置き換える（members配列 + winner_id）

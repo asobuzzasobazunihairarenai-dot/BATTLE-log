@@ -607,11 +607,13 @@
             <p class="text-xs text-gray-500 mb-2 leading-relaxed">未連携で二重登録されたプレイヤー等を1つにまとめます。<b>統合元</b>の全戦績（試合の参加・勝利、初期戦績）を<b>統合先</b>へ移し、統合元は削除します。<span class="text-rose-600 font-bold">この操作は取り消せません。</span></p>
             <div class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
               <label class="flex-1 text-xs text-slate-600">統合元（消える方）
-                <select id="merge-source-select" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+                <select id="merge-source-select" onchange="updateMergePreview('merge-source-select','merge-source-preview')" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+                <div id="merge-source-preview"></div>
               </label>
               <div class="text-slate-400 self-center pb-1"><i class="fa-solid fa-arrow-right"></i></div>
               <label class="flex-1 text-xs text-slate-600">統合先（残る方）
-                <select id="merge-target-select" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+                <select id="merge-target-select" onchange="updateMergePreview('merge-target-select','merge-target-preview')" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white"></select>
+                <div id="merge-target-preview"></div>
               </label>
               <button onclick="runMergeStatsPlayers()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2 px-4 rounded-lg shadow transition shrink-0">統合する</button>
             </div>
@@ -1139,7 +1141,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202607310300";
+    const BUILD_VERSION = "202608020129";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -3306,16 +3308,54 @@
       const src = document.getElementById('merge-source-select');
       const tgt = document.getElementById('merge-target-select');
       if (!src || !tgt) return;
+      // 「(●戦)」には初期戦績(seed)だけでなく実際の対戦数も合算した数値を使う
+      const stats = computePlayerStats();
       const opts = players
         .filter(p => p.status === 'approved')
         .slice()
         .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'))
-        .map(p => `<option value="${p.id}">${p.name}（${p.seedMatchesCount}戦）</option>`)
+        .map(p => {
+          const matchesCount = stats[p.id] ? stats[p.id].matchesCount : 0;
+          return `<option value="${p.id}">${p.name}（${matchesCount}戦）</option>`;
+        })
         .join('');
       const prevSrc = src.value, prevTgt = tgt.value;
       src.innerHTML = `<option value="">選択…</option>` + opts;
       tgt.innerHTML = `<option value="">選択…</option>` + opts;
       src.value = prevSrc; tgt.value = prevTgt;
+      updateMergePreview('merge-source-select', 'merge-source-preview');
+      updateMergePreview('merge-target-select', 'merge-target-preview');
+    }
+
+    // 選択したプレイヤーのアバター・戦績をプレビュー表示する (統合ミス防止)
+    function updateMergePreview(selectId, previewId) {
+      const select = document.getElementById(selectId);
+      const preview = document.getElementById(previewId);
+      if (!select || !preview) return;
+
+      const playerId = select.value;
+      if (!playerId) {
+        preview.innerHTML = '';
+        return;
+      }
+
+      const stats = computePlayerStats();
+      const s = stats[playerId];
+      if (!s) {
+        preview.innerHTML = '';
+        return;
+      }
+
+      const avatarHtml = getAvatarElementHtml(s, 9);
+      preview.innerHTML = `
+        <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2 mt-1.5">
+          ${avatarHtml}
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-bold text-slate-700 truncate">${s.name}</div>
+            <div class="text-[10px] text-slate-400 font-mono">対戦${s.matchesCount} / 勝利${s.winsCount} / 勝率${s.winRate}%</div>
+          </div>
+        </div>
+      `;
     }
     async function mergeStatsPlayers(sourceId, targetId) {
       // 1. 全matchesで sourceId を targetId に置き換える（members配列 + winner_id）
