@@ -69,6 +69,11 @@
     <button onclick="closeToast()" class="text-slate-400 hover:text-white p-1 ml-2 shrink-0"><i class="fa-solid fa-xmark"></i></button>
   </div>
 
+  <!-- 公式Discordへのフローティングボタン(常設) -->
+  <a href="https://discord.gg/stP78fswKx" target="_blank" rel="noopener noreferrer" class="fixed bottom-20 right-5 z-40 bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold text-xs sm:text-sm py-3 px-4 rounded-full shadow-2xl shadow-[#5865F2]/30 flex items-center gap-2 transition animate-pulse">
+    <i class="fa-brands fa-discord text-base"></i> 公式Discord
+  </a>
+
   <!-- 使い方ポップアップを開くフローティングボタン -->
   <button type="button" onclick="openHelpModal()" class="fixed bottom-5 right-5 z-40 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm py-3 px-4 rounded-full shadow-2xl shadow-indigo-600/30 flex items-center gap-2 transition">
     <i class="fa-solid fa-circle-question text-base"></i> 使い方
@@ -112,6 +117,18 @@
   </div>
 
   <main class="max-w-7xl mx-auto p-4 space-y-6">
+
+    <!-- 公式Discordへの導線 -->
+    <a href="https://discord.gg/stP78fswKx" target="_blank" rel="noopener noreferrer" class="flex items-center gap-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-xl shadow-lg shadow-[#5865F2]/20 p-4 transition">
+      <i class="fa-brands fa-discord text-3xl shrink-0"></i>
+      <div class="min-w-0 flex-1">
+        <div class="font-bold text-sm flex items-center gap-2 flex-wrap">
+          7 SHADES OF S:EVEN 公式Discord
+          <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+        </div>
+        <p class="text-[11px] text-indigo-100 mt-0.5 leading-relaxed">対戦相手の募集や、みんなでワイワイ話せる通話部屋があります！気軽に参加してね</p>
+      </div>
+    </a>
 
     <!-- デジタルアプリ版テストプレイへの導線 -->
     <a href="https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/20 transition">
@@ -1148,7 +1165,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202608020138";
+    const BUILD_VERSION = "202608110031";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
