@@ -1417,7 +1417,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260828-205123";
+    const BUILD_VERSION = "20260828-215257";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -2107,6 +2107,45 @@
     // デジタル版のマイページで集めて選んだ「お気に入りの称号」を、こちらでも表示する。
     // 解禁の判定はデジタル版（src/titles.js）が持ち、こちらは保存されたキーを名前に直すだけ。
     // **片方の定義を直したらもう片方も直すこと**（getTierInfo等と同じ複製の約束）。
+    // 解禁条件もこちらに複製してある（デジタル版 src/titles.js の test と同じ内容）。
+    // こうすると「その人が獲得している称号の一覧」を戦績サイト側だけで出せる
+    // （解禁状況はどこにも保存していない＝いつでもその時の戦績から計算する、という設計のため）。
+    // 判定に使う値: matchesCount / winsCount / winRate（この画面の集計）、rank（so7_ranked_players）、
+    // bugReports（so7_get_bug_report_counts）。取れない情報は0/nullとして扱う＝誤って解禁しない。
+    const TITLE_TESTS = {
+      'debut': (s) => s.matchesCount >= 1,
+      'regular': (s) => s.matchesCount >= 10,
+      'veteran': (s) => s.matchesCount >= 30,
+      'pillar': (s) => s.matchesCount >= 50,
+      'first-win': (s) => s.winsCount >= 1,
+      'winner5': (s) => s.winsCount >= 5,
+      'winner10': (s) => s.winsCount >= 10,
+      'sharp': (s) => s.matchesCount >= 10 && s.winRate >= 50,
+      'dominant': (s) => s.matchesCount >= 10 && s.winRate >= 70,
+      'ranked-debut': (s) => s.rank !== null && s.rank !== undefined,
+      'rank-gold': (s) => (s.rank ?? -1) >= 2,
+      'rank-diamond': (s) => (s.rank ?? -1) >= 4,
+      'rank-legend': (s) => (s.rank ?? -1) >= 6,
+      'reporter1': (s) => s.bugReports >= 1,
+      'reporter5': (s) => s.bugReports >= 5,
+      'reporter10': (s) => s.bugReports >= 10,
+    };
+
+    // そのプレイヤーが獲得している称号のキー一覧。
+    function unlockedTitleKeysOf(player) {
+      const info = player?.userId ? rankedRankByUserId[player.userId] : null;
+      const s = {
+        matchesCount: player?.matchesCount ?? 0,
+        winsCount: player?.winsCount ?? 0,
+        winRate: player?.winRate ?? 0,
+        rank: info ? info.rank : null,
+        bugReports: bugReportCountOf(player),
+      };
+      return Object.keys(TITLE_TESTS).filter(k => {
+        try { return !!TITLE_TESTS[k](s); } catch (e) { return false; }
+      });
+    }
+
     const TITLE_LABELS = {
       'debut': '🌱 目覚めし者',
       'regular': '🧭 盤上の旅人',
@@ -2129,6 +2168,32 @@
       const key = player?.titleKey;
       return key ? (TITLE_LABELS[key] || null) : null;
     }
+    // 戦績モーダルに出す「獲得している称号」の一覧（ユーザーの質問「戦績システムで称号はどう
+    // 確認する？」への対応）。お気に入りに選ばれている1つは金色で強調する。未取得のものは
+    // ここには出さない（自分のコレクション＝未取得の枠も見たい時はデジタル版のマイページ）。
+    function titleCollectionHtml(player) {
+      const keys = unlockedTitleKeysOf(player);
+      const total = Object.keys(TITLE_TESTS).length;
+      if (keys.length === 0) {
+        return `<div class="mt-2 pt-2 border-t border-slate-200/70">
+          <div class="text-[10px] font-bold text-slate-400 mb-1">称号 0 / ${total}</div>
+          <p class="text-[10px] text-slate-400 italic">まだ獲得した称号がありません。</p>
+        </div>`;
+      }
+      const chips = keys.map(k => {
+        const isFav = player?.titleKey === k;
+        const cls = isFav
+          ? 'bg-amber-100 border-amber-400 text-amber-900 font-bold'
+          : 'bg-slate-50 border-slate-200 text-slate-600';
+        const star = isFav ? '<i class="fa-solid fa-star text-[7px] mr-1"></i>' : '';
+        return `<span class="inline-flex items-center text-[10px] border rounded-full px-2 py-0.5 ${cls}" ${isFav ? 'title="この人が選んでいるお気に入りの称号"' : ''}>${star}${TITLE_LABELS[k] || k}</span>`;
+      }).join('');
+      return `<div class="mt-2 pt-2 border-t border-slate-200/70">
+        <div class="text-[10px] font-bold text-slate-400 mb-1">称号 ${keys.length} / ${total}<span class="font-normal text-slate-300 ml-1">（★はお気に入り。集め方はデジタル版のマイページで見られます）</span></div>
+        <div class="flex flex-wrap gap-1">${chips}</div>
+      </div>`;
+    }
+
     function titleChipHtml(player, extraClass) {
       const label = titleLabelOf(player);
       if (!label) return '';
@@ -2688,6 +2753,7 @@
           </div>
         </div>
         ${seedNote}
+        ${titleCollectionHtml(target)}
       `;
 
       const listEl = document.getElementById('my-history-list');
@@ -5397,6 +5463,7 @@
             ${myStatsChipHtml('対戦数', `${myStats.matchesCount}`, 'text-white')}
             ${myStatsChipHtml('勝利数', `${myStats.winsCount}`, 'text-white')}
             ${myStatsChipHtml('勝率', `${myStats.winRate}%`, 'text-amber-300')}
+            ${myStatsChipHtml('不具合報告', `${bugReportCountOf(myStats)}`, 'text-rose-300')}
             ${myStatsChipHtml('勝率順位', `${rankText(winRateRank, true)}${rankSub(winRateRank)}`, 'text-indigo-300')}
             ${myStatsChipHtml('対戦数順位', `${rankText(matchRank, false)}${rankSub(matchRank)}`, 'text-indigo-300')}
             <button onclick="openMyHistoryModal()" class="text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-4 py-2 shadow transition ml-1">
