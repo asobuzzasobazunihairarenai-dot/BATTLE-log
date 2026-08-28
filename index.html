@@ -1417,7 +1417,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260828-174708";
+    const BUILD_VERSION = "20260828-201855";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1781,6 +1781,8 @@
         // 「マイ戦績」で自分の行を特定するのに使う。playerToRowには含めない——このサイトからの
         // 保存(update/insert)でうっかり連携を上書き・消去しないようにするため（読み取り専用）。
         userId: row.user_id || null,
+        // 称号（デジタル版のマイページで選ぶ。src/titles.js 参照）。表示のみで、この画面からは変えない。
+        titleKey: row.title_key || null,
         discordId: row.discord_id || "",
         avatar: row.avatar_url || "",
         customTriangleColor: row.custom_triangle_color || "",
@@ -2101,6 +2103,38 @@
       }
     }
 
+    // ── 称号（続き313）─────────────────────────────────────────────────────
+    // デジタル版のマイページで集めて選んだ「お気に入りの称号」を、こちらでも表示する。
+    // 解禁の判定はデジタル版（src/titles.js）が持ち、こちらは保存されたキーを名前に直すだけ。
+    // **片方の定義を直したらもう片方も直すこと**（getTierInfo等と同じ複製の約束）。
+    const TITLE_LABELS = {
+      'debut': '🌱 初陣',
+      'regular': '🎲 常連',
+      'veteran': '⚔️ 歴戦',
+      'pillar': '🏛️ 不動の柱',
+      'first-win': '✨ 初勝利',
+      'winner5': '🔥 五つの勝ち星',
+      'winner10': '👑 十の勝ち星',
+      'sharp': '🎯 冴えた読み',
+      'dominant': '💠 盤上の支配者',
+      'ranked-debut': '🎖️ 挑戦者',
+      'rank-gold': '🥇 黄金の段位',
+      'rank-diamond': '💎 宝石の段位',
+      'rank-legend': '🌈 伝説',
+      'reporter1': '🐛 バグ発見者',
+      'reporter5': '🔍 バグハンター',
+      'reporter10': '🛡️ セブンの守護者',
+    };
+    function titleLabelOf(player) {
+      const key = player?.titleKey;
+      return key ? (TITLE_LABELS[key] || null) : null;
+    }
+    function titleChipHtml(player, extraClass) {
+      const label = titleLabelOf(player);
+      if (!label) return '';
+      return `<span class="inline-flex items-center text-[9px] font-bold text-amber-800 bg-amber-100/70 border border-amber-300 rounded-full px-1.5 py-0.5 shrink-0 ${extraClass || ''}" title="デジタル版で選んだ称号">${label}</span>`;
+    }
+
     // アバターの右下に少し重ねて載せる段位バッジ。sizePx はアバターの直径。
     // 極小のチップ（対戦履歴の参加者チップ=20px）には載せない——潰れて汚くなるため。
     function buildRankBadgeOverlayHtml(player, sizePx) {
@@ -2275,6 +2309,7 @@
           winRate: 0,
           // 段位バッジ（buildRankBadgeOverlayHtml）が so7_ranked_players を引くのに使う。
           userId: p.userId || null,
+          titleKey: p.titleKey || null,
           isStaff: p.isStaff || false,
           // プロフィール編集の申請データ(editPending)をここに格納してレンダリングに渡す
           editPending: p.editPending || null
@@ -2640,7 +2675,7 @@
         <div class="flex items-center gap-3 flex-wrap">
           <div class="shrink-0">${getAvatarElementHtml(target, 12)}</div>
           <div class="min-w-0">
-            <div class="font-bold text-slate-800 text-sm">${target.name}</div>
+            <div class="font-bold text-slate-800 text-sm flex items-center gap-1.5 flex-wrap">${target.name}${titleChipHtml(target)}</div>
             <div class="text-[10px] text-slate-400">${tier.label}</div>
             <div class="text-[11px] text-slate-500 mt-0.5">
               通算 ${target.matchesCount}戦 ${target.winsCount}勝（勝率 ${target.winRate}%）
@@ -3534,6 +3569,8 @@
         const avatarHtml = getAvatarElementHtml(player, 10);
 
         // Discord IDがない場合は非表示（ブランク）
+        // 称号（続き313）。Discordタグの行に並べる（無ければ称号だけの行になる）。
+        const titleHtml = titleChipHtml(player);
         const discordTagHtml = player.discordId && player.discordId.trim() !== ""
           ? `<div class="text-[9px] text-slate-400 font-mono truncate leading-normal pt-0.5">@${player.discordId}</div>`
           : '';
@@ -3577,7 +3614,7 @@
                 ${bugBadgeHtml}
                 ${pendingBadgeHtml}
               </div>
-              ${discordTagHtml}
+              <div class="flex items-center gap-1 flex-wrap pt-0.5">${titleHtml}${discordTagHtml}</div>
             </div>
           </div>
 

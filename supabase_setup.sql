@@ -168,3 +168,9 @@ create policy "match_feedback_replies_update" on match_feedback_replies for upda
 
 drop policy if exists "game_comments_update" on game_comments;
 create policy "game_comments_update" on game_comments for update using (true);
+
+-- 追加機能(2026-08-28): 称号（デジタル版のマイページで集めて、1つをお気に入りに選ぶ）。
+-- デジタル版側の so7_user_profiles は「自分の行しか読めない」RLSのため、他人の称号を表示できない。
+-- players は全員が読める（players_select using(true)）ので、選んだ称号のキーはこちらに持たせる。
+-- 解禁状況そのものは保存しない（その時々の戦績から毎回計算する。src/titles.js のコメント参照）。
+alter table players add column if not exists title_key text;
