@@ -1178,7 +1178,7 @@
   <div id="my-history-modal" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
     <div class="bg-white rounded-3xl max-w-3xl w-full p-5 shadow-2xl my-6">
       <div class="flex justify-between items-center border-b pb-3 mb-3">
-        <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-scroll mr-2 text-indigo-600"></i>マイ戦績</h3>
+        <h3 id="my-history-title" class="font-bold text-lg text-slate-800"><i class="fa-solid fa-scroll mr-2 text-indigo-600"></i>マイ戦績</h3>
         <button onclick="closeMyHistoryModal()" class="text-gray-400 hover:text-gray-600" aria-label="閉じる"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
       <div id="my-history-summary" class="bg-slate-50 border border-slate-100 rounded-xl p-3 mb-3"></div>
@@ -1375,7 +1375,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260828-131216";
+    const BUILD_VERSION = "20260828-173937";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -2436,7 +2436,11 @@
           const mp = players.find(p => p.id === mid);
           const name = mp ? mp.name : "不明";
           const avatarHtml = mp ? getAvatarElementHtml(mp, 5) : '';
-          return `<span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5">${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${name}</span></span>`;
+          // 続き311: 参加者チップをクリックするとその人の戦績が開く（削除済みプレイヤーは対象外）。
+          const attrs = mp
+            ? `onclick="openPlayerHistoryModal('${mp.id}')" title="${name}さんの戦績を見る" class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50 transition rounded-full pl-0.5 pr-2 py-0.5 cursor-pointer"`
+            : `class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5"`;
+          return `<span ${attrs}>${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${name}</span></span>`;
         }).join(' ');
         // ゲスト（デジタル版の匿名参加者、プレイヤー未登録）を「ゲスト（名前）」チップで併記。
         const guestChipsHtml = (match.guestNames || []).map(gn =>
@@ -2518,32 +2522,65 @@
     // ユーザー要望2026-08-28「戦績システムからマイ戦績を開けるようにしたい。自分のかかわった
     // 戦績だけが並ぶ」。マイ戦績バーのボタンから開く。承認済みの試合のうち、自分が参加者
     // (members) に入っているものだけを新しい順に並べ、自分視点の勝敗バッジを付ける。
-    function openMyHistoryModal() {
-      const me = findMyStatsPlayer();
-      if (!me) return;
+    // 続き311: 「マイ戦績」を一般化し、**どのプレイヤーの戦績でも**同じ画面で見られるようにした。
+    // （プレイヤー一覧のカード・対戦履歴の参加者チップをクリックすると開く）
+    // playerId を渡すとその人の視点（WIN/LOSEバッジ・参加した試合だけ）で表示する。
+    function openPlayerHistoryModal(playerId) {
       const stats = computePlayerStats();
-      const myStats = stats[me.id];
-      const mine = matches
-        .filter(m => m.status === 'approved' && (m.members || []).includes(me.id))
-        .sort((a, b) => b.createdAt - a.createdAt);
-      const wins = mine.filter(m => m.winnerId === me.id).length;
-      const rate = mine.length > 0 ? Math.round((wins / mine.length) * 100) : 0;
+      const target = stats[playerId];
+      if (!target) return;
+      const me = findMyStatsPlayer();
+      const isSelf = !!me && me.id === playerId;
 
-      const seedCount = players.find(p => p.id === me.id)?.seedMatchesCount || 0;
+      const list = matches
+        .filter(m => m.status === 'approved' && (m.members || []).includes(playerId))
+        .sort((a, b) => b.createdAt - a.createdAt);
+      const wins = list.filter(m => m.winnerId === playerId).length;
+      const rate = list.length > 0 ? Math.round((wins / list.length) * 100) : 0;
+
+      const seedCount = players.find(p => p.id === playerId)?.seedMatchesCount || 0;
       const seedNote = seedCount > 0
         ? `<p class="text-[10px] text-slate-400 mt-1">※公開前の一括記録ぶん（${seedCount}戦）は1試合ごとの記録が無いため、この一覧には出ません（上の合計には含まれています）。</p>`
         : '';
 
+      const titleEl = document.getElementById('my-history-title');
+      if (titleEl) {
+        titleEl.innerHTML = isSelf
+          ? '<i class="fa-solid fa-scroll mr-2 text-indigo-600"></i>マイ戦績'
+          : `<i class="fa-solid fa-scroll mr-2 text-indigo-600"></i>${target.name}さんの戦績`;
+      }
+
+      // 順位は画面のランキングと同じルール（computeMyRankInfo）で出す。
+      const approvedStatsList = Object.values(stats).filter(p => p.status === 'approved');
+      const { winRateRank, matchRank, threshold } = computeMyRankInfo(target, approvedStatsList);
+      const tier = getTierInfo(target.matchesCount, target.customTriangleColor);
+      const rankChip = (label, r, isWinRate) => {
+        let value;
+        if (r.rank) value = `<span class="font-bold">${r.rank}位</span><span class="text-[9px] text-slate-400">/${r.total}人</span>`;
+        else if (target.isStaff) value = '<span class="text-[10px] text-slate-400">運営枠</span>';
+        else if (isWinRate) value = `<span class="text-[10px] text-slate-400">あと${Math.max(1, Math.ceil(threshold + 0.0001) - target.matchesCount)}戦</span>`;
+        else value = '<span class="text-[10px] text-slate-400">—</span>';
+        return `<div class="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-center">
+            <div class="text-[9px] text-slate-400 font-bold leading-none mb-1">${label}</div>
+            <div class="font-mono text-xs leading-none">${value}</div>
+          </div>`;
+      };
+
       const summaryEl = document.getElementById('my-history-summary');
       summaryEl.innerHTML = `
         <div class="flex items-center gap-3 flex-wrap">
-          <div class="shrink-0">${getAvatarElementHtml(myStats, 10)}</div>
+          <div class="shrink-0">${getAvatarElementHtml(target, 12)}</div>
           <div class="min-w-0">
-            <div class="font-bold text-slate-800 text-sm">${myStats.name}</div>
-            <div class="text-[11px] text-slate-500">
-              通算 ${myStats.matchesCount}戦 ${myStats.winsCount}勝（勝率 ${myStats.winRate}%）
-              ／ このリスト内 ${mine.length}戦 ${wins}勝（${rate}%）
+            <div class="font-bold text-slate-800 text-sm">${target.name}</div>
+            <div class="text-[10px] text-slate-400">${tier.label}</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">
+              通算 ${target.matchesCount}戦 ${target.winsCount}勝（勝率 ${target.winRate}%）
+              ／ このリスト内 ${list.length}戦 ${wins}勝（${rate}%）
             </div>
+          </div>
+          <div class="flex gap-1.5 ml-auto">
+            ${rankChip('勝率順位', winRateRank, true)}
+            ${rankChip('対戦数順位', matchRank, false)}
           </div>
         </div>
         ${seedNote}
@@ -2551,21 +2588,30 @@
 
       const listEl = document.getElementById('my-history-list');
       listEl.innerHTML = "";
-      if (mine.length === 0) {
-        listEl.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-8">まだ承認済みの対戦記録がありません。デジタル版でオンライン対戦をすると、ここに並びます。</p>`;
+      if (list.length === 0) {
+        listEl.innerHTML = isSelf
+          ? `<p class="text-xs text-gray-400 italic text-center py-8">まだ承認済みの対戦記録がありません。デジタル版でオンライン対戦をすると、ここに並びます。</p>`
+          : `<p class="text-xs text-gray-400 italic text-center py-8">承認済みの対戦記録がまだありません。</p>`;
       } else {
-        for (const match of mine) {
+        for (const match of list) {
           const item = document.createElement('div');
           item.className = "border border-slate-200/80 rounded-xl p-3 flex gap-3 items-start";
           item.innerHTML = buildMatchHistoryItemInnerHtml(match, {
-            selfPlayerId: me.id,
-            interactive: false, // 返信フォームのid重複を避ける（上のコメント参照）
+            selfPlayerId: playerId,
+            interactive: false, // 返信フォームのid重複を避ける（buildMatchHistoryItemInnerHtmlのコメント参照）
             idPrefix: 'myhistory',
           });
           listEl.appendChild(item);
         }
       }
       document.getElementById('my-history-modal').classList.remove('hidden');
+    }
+
+    // マイ戦績バーのボタンから呼ぶ入口（自分の戦績を開くだけの薄いラッパー）。
+    function openMyHistoryModal() {
+      const me = findMyStatsPlayer();
+      if (!me) return;
+      openPlayerHistoryModal(me.id);
     }
 
     function closeMyHistoryModal() {
@@ -3340,14 +3386,18 @@
           : '';
 
         // ペンマーク編集ボタンは一般・管理者ともに開放
+        // 編集ボタンはカード全体のクリック（戦績を見る）より優先させる＝伝播を止める（続き311）。
         const editButtonHtml = `
-          <button onclick="openPlayerEditModal('${player.id}')" class="text-slate-400 hover:text-indigo-600 transition ml-1.5 p-0.5 shrink-0" title="${player.name}さんのプロフィールを編集">
+          <button onclick="event.stopPropagation(); openPlayerEditModal('${player.id}')" class="text-slate-400 hover:text-indigo-600 transition ml-1.5 p-0.5 shrink-0" title="${player.name}さんのプロフィールを編集">
             <i class="fa-solid fa-user-gear text-xs"></i>
           </button>
         `;
 
         const card = document.createElement('div');
-        card.className = "bg-white border border-slate-200/80 rounded-xl p-2.5 grid grid-cols-12 gap-2 items-center hover:border-indigo-200 transition-colors shadow-sm";
+        // 続き311: カードをクリックするとその人の戦績（対戦履歴つき）が開く。
+        card.className = "bg-white border border-slate-200/80 rounded-xl p-2.5 grid grid-cols-12 gap-2 items-center hover:border-indigo-300 hover:shadow-md transition-all shadow-sm cursor-pointer";
+        card.title = `${player.name}さんの戦績を見る`;
+        card.addEventListener('click', () => openPlayerHistoryModal(player.id));
         card.innerHTML = `
           <!-- 左側領域 (7カラム分占有) -->
           <div class="col-span-7 flex items-center gap-2 min-w-0">
