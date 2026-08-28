@@ -1,5 +1,14 @@
 -- 7 SHADES OF S:EVEN 戦績管理システム用 Supabase スキーマ
 -- Supabaseダッシュボード > SQL Editor に貼り付けて実行してください
+--
+-- ★このファイルは「全部まとめて貼り付けて実行」して大丈夫です（何度実行しても壊れません）。
+--   2026-08-28にそう作り直しました。それ以前は、
+--     ・create policy に drop policy if exists が無く「既に存在します」でエラー
+--     ・alter publication ... add table が「既に入っています」でエラー
+--   となり、**途中でエラーが出るとそれ以降の行が実行されない**（＝末尾に追記した新しい設定が
+--   反映されない）状態でした。全 create policy に drop を前置し、publication への追加は
+--   「まだ入っていなければ」の判定で包んであります。
+--   テーブル・列・索引は元から create table if not exists / add column if not exists なので安全です。
 
 -- プレイヤーテーブル
 create table if not exists players (
@@ -42,33 +51,59 @@ alter table app_settings enable row level security;
 -- ※このアプリは管理者パスワードをアプリ側(JS)だけでチェックする簡易方式のため、
 --   本当の「管理者だけ書き込み可」はDB側では強制していません。
 --   身内・友人内での運用を想定した簡易ポリシーです。
+drop policy if exists "players_select" on players;
 create policy "players_select" on players for select using (true);
+drop policy if exists "players_insert" on players;
 create policy "players_insert" on players for insert with check (true);
+drop policy if exists "players_update" on players;
 create policy "players_update" on players for update using (true);
+drop policy if exists "players_delete" on players;
 create policy "players_delete" on players for delete using (true);
 
+drop policy if exists "matches_select" on matches;
 create policy "matches_select" on matches for select using (true);
+drop policy if exists "matches_insert" on matches;
 create policy "matches_insert" on matches for insert with check (true);
+drop policy if exists "matches_update" on matches;
 create policy "matches_update" on matches for update using (true);
+drop policy if exists "matches_delete" on matches;
 create policy "matches_delete" on matches for delete using (true);
 
+drop policy if exists "app_settings_select" on app_settings;
 create policy "app_settings_select" on app_settings for select using (true);
+drop policy if exists "app_settings_update" on app_settings;
 create policy "app_settings_update" on app_settings for update using (true);
 
 -- Realtime配信を有効化(他の端末の変更を自動反映するため)
-alter publication supabase_realtime add table players;
-alter publication supabase_realtime add table matches;
-alter publication supabase_realtime add table app_settings;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'players') then
+    alter publication supabase_realtime add table players;
+  end if;
+end $$;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'matches') then
+    alter publication supabase_realtime add table matches;
+  end if;
+end $$;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'app_settings') then
+    alter publication supabase_realtime add table app_settings;
+  end if;
+end $$;
 
 -- 追加修正: Storageバケット(avatars, match-proofs)へのアップロードを許可するポリシー
 -- (バケットの「Public」設定は閲覧のみを許可するもので、アップロードには別途ポリシーが必要なため)
+drop policy if exists "avatars_insert" on storage.objects;
 create policy "avatars_insert" on storage.objects for insert
   with check (bucket_id = 'avatars');
+drop policy if exists "avatars_select" on storage.objects;
 create policy "avatars_select" on storage.objects for select
   using (bucket_id = 'avatars');
 
+drop policy if exists "match_proofs_insert" on storage.objects;
 create policy "match_proofs_insert" on storage.objects for insert
   with check (bucket_id = 'match-proofs');
+drop policy if exists "match_proofs_select" on storage.objects;
 create policy "match_proofs_select" on storage.objects for select
   using (bucket_id = 'match-proofs');
 
@@ -83,10 +118,17 @@ create table if not exists game_comments (
   created_at bigint not null
 );
 alter table game_comments enable row level security;
+drop policy if exists "game_comments_select" on game_comments;
 create policy "game_comments_select" on game_comments for select using (true);
+drop policy if exists "game_comments_insert" on game_comments;
 create policy "game_comments_insert" on game_comments for insert with check (true);
+drop policy if exists "game_comments_delete" on game_comments;
 create policy "game_comments_delete" on game_comments for delete using (true);
-alter publication supabase_realtime add table game_comments;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'game_comments') then
+    alter publication supabase_realtime add table game_comments;
+  end if;
+end $$;
 
 -- 追加機能: 公開前の初期戦績(ベース値)をプレイヤーごとに設定できるようにする
 alter table players add column if not exists seed_matches_count integer not null default 0;
@@ -102,7 +144,9 @@ create table if not exists page_visits (
   visited_at bigint not null
 );
 alter table page_visits enable row level security;
+drop policy if exists "page_visits_select" on page_visits;
 create policy "page_visits_select" on page_visits for select using (true);
+drop policy if exists "page_visits_insert" on page_visits;
 create policy "page_visits_insert" on page_visits for insert with check (true);
 
 -- 追加機能: 戦績申請に「プレイ時間(約●分・任意)」を追加
@@ -126,10 +170,17 @@ create table if not exists admin_news (
   created_at bigint not null
 );
 alter table admin_news enable row level security;
+drop policy if exists "admin_news_select" on admin_news;
 create policy "admin_news_select" on admin_news for select using (true);
+drop policy if exists "admin_news_insert" on admin_news;
 create policy "admin_news_insert" on admin_news for insert with check (true);
+drop policy if exists "admin_news_delete" on admin_news;
 create policy "admin_news_delete" on admin_news for delete using (true);
-alter publication supabase_realtime add table admin_news;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'admin_news') then
+    alter publication supabase_realtime add table admin_news;
+  end if;
+end $$;
 
 -- 追加機能: 「ゲームについてコメントする」の返信機能
 alter table game_comments add column if not exists parent_id text references game_comments(id) on delete cascade;
@@ -143,15 +194,23 @@ create table if not exists match_feedback_replies (
   created_at bigint not null
 );
 alter table match_feedback_replies enable row level security;
+drop policy if exists "match_feedback_replies_select" on match_feedback_replies;
 create policy "match_feedback_replies_select" on match_feedback_replies for select using (true);
+drop policy if exists "match_feedback_replies_insert" on match_feedback_replies;
 create policy "match_feedback_replies_insert" on match_feedback_replies for insert with check (true);
+drop policy if exists "match_feedback_replies_delete" on match_feedback_replies;
 create policy "match_feedback_replies_delete" on match_feedback_replies for delete using (true);
-alter publication supabase_realtime add table match_feedback_replies;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'match_feedback_replies') then
+    alter publication supabase_realtime add table match_feedback_replies;
+  end if;
+end $$;
 
 -- 追加機能: 管理者ニュースに「非表示フラグ」を追加(削除せず一時的に隠せるように)
 alter table admin_news add column if not exists is_hidden boolean not null default false;
 
 -- 追加修正: admin_newsテーブルにUPDATE(非表示フラグの更新)を許可するポリシーが抜けていたので追加
+drop policy if exists "admin_news_update" on admin_news;
 create policy "admin_news_update" on admin_news for update using (true);
 
 -- 追加機能: ニュースティッカーの流れる速度を管理者が調整できるようにする(秒数=1周にかかる時間。大きいほどゆっくり)
