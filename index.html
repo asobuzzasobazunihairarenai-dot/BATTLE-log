@@ -983,6 +983,21 @@
     </div>
   </div>
 
+  <!-- マイ戦績（自分がかかわった対戦だけを新しい順に並べる。マイ戦績バーのボタンから開く） -->
+  <div id="my-history-modal" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-3xl w-full p-5 shadow-2xl my-6">
+      <div class="flex justify-between items-center border-b pb-3 mb-3">
+        <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-scroll mr-2 text-indigo-600"></i>マイ戦績</h3>
+        <button onclick="closeMyHistoryModal()" class="text-gray-400 hover:text-gray-600" aria-label="閉じる"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div id="my-history-summary" class="bg-slate-50 border border-slate-100 rounded-xl p-3 mb-3"></div>
+      <div id="my-history-list" class="space-y-2"></div>
+      <div class="flex justify-end pt-3">
+        <button onclick="closeMyHistoryModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 px-4 rounded-xl transition">閉じる</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 勝率ランキング参加条件の説明モーダル -->
   <div id="ranking-info-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
@@ -2011,51 +2026,9 @@
       }
 
       approvedList.forEach(match => {
-        const winner = players.find(p => p.id === match.winnerId);
-        const memberChipsHtml = match.members.map(mid => {
-          const mp = players.find(p => p.id === mid);
-          const name = mp ? mp.name : "不明";
-          const avatarHtml = mp ? getAvatarElementHtml(mp, 5) : '';
-          return `<span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5">${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${name}</span></span>`;
-        }).join(' ');
-        // ゲスト（デジタル版の匿名参加者、プレイヤー未登録）を「ゲスト（名前）」チップで併記。
-        const guestChipsHtml = (match.guestNames || []).map(gn =>
-          `<span class="inline-flex items-center gap-1 bg-slate-100 border border-dashed border-slate-300 rounded-full px-2 py-0.5"><i class="fa-solid fa-user text-slate-300 text-[9px]"></i><span class="text-[10px] text-slate-400 font-bold">ゲスト（${gn}）</span></span>`
-        ).join(' ');
-
-        const proofThumbHtml = match.proofImage
-          ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
-          : `<div class="w-16 h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 text-[9px] font-bold text-center shrink-0 p-1">証拠なし</div>`;
-
-        const durationHtml = match.durationMinutes
-          ? `<div class="text-[9px] text-slate-400 font-bold text-center mt-1"><i class="fa-solid fa-hourglass-half mr-0.5"></i>約${match.durationMinutes}分</div>`
-          : '';
-
-        const hasFeedback = match.feedback && match.feedback.trim() !== "";
-        const feedbackHtml = hasFeedback
-          ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${buildExpandableTextHtml(match.feedback, 'history-feedback-' + match.id)}</p>`
-          : '';
-        // デジタル版では対戦終了時に参加者全員がコメントできる。誰でもいつでもコメント／
-        // 個別返信できるよう、コメントが無い試合でも常に「みんなのコメント」欄を表示する。
-        const feedbackRepliesHtml = renderMatchFeedbackRepliesHtml(match.id);
-
         const item = document.createElement('div');
         item.className = "border border-slate-200/80 rounded-xl p-3 flex gap-3 items-start";
-        item.innerHTML = `
-          <div class="flex flex-col items-center shrink-0">
-            ${proofThumbHtml}
-            ${durationHtml}
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-1.5 mb-1 flex-wrap">
-              <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
-              <span class="text-xs text-amber-700 font-bold">👑 ${winner ? winner.name : ((match.guestNames || []).length ? "ゲスト" : "不明")}</span>
-            </div>
-            <div class="flex items-center gap-1 flex-wrap">${memberChipsHtml}${guestChipsHtml ? ' ' + guestChipsHtml : ''}</div>
-            ${feedbackHtml}
-            ${feedbackRepliesHtml}
-          </div>
-        `;
+        item.innerHTML = buildMatchHistoryItemInnerHtml(match);
         container.appendChild(item);
       });
 
@@ -2074,6 +2047,156 @@
         `;
         container.appendChild(seedItem);
       }
+    }
+
+    // 1試合ぶんの履歴カードの中身HTML。「過去の戦績履歴」と「マイ戦績」で共用する（続き303）。
+    //  opts.selfPlayerId … 指定するとその人から見た勝敗バッジ（WIN/LOSE）を先頭に付ける（マイ戦績用）
+    //  opts.interactive  … false にするとコメントを読み取り専用で描く（返信フォームを作らない）。
+    //    同じ試合を2箇所に同時表示すると、返信フォームのDOM id（match-reply-form-… 等）が重複して
+    //    getElementById が別の場所の要素を掴んでしまうため、モーダル側は必ず false にする。
+    //  opts.idPrefix     … 「続きを表示」の展開に使うid の接頭辞（同上の重複回避）
+    function buildMatchHistoryItemInnerHtml(match, opts = {}) {
+      const interactive = opts.interactive !== false;
+      const idPrefix = opts.idPrefix || 'history';
+      const winner = players.find(p => p.id === match.winnerId);
+      const memberChipsHtml = match.members.map(mid => {
+          const mp = players.find(p => p.id === mid);
+          const name = mp ? mp.name : "不明";
+          const avatarHtml = mp ? getAvatarElementHtml(mp, 5) : '';
+          return `<span class="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full pl-0.5 pr-2 py-0.5">${avatarHtml}<span class="text-[10px] text-slate-600 font-bold">${name}</span></span>`;
+        }).join(' ');
+        // ゲスト（デジタル版の匿名参加者、プレイヤー未登録）を「ゲスト（名前）」チップで併記。
+        const guestChipsHtml = (match.guestNames || []).map(gn =>
+          `<span class="inline-flex items-center gap-1 bg-slate-100 border border-dashed border-slate-300 rounded-full px-2 py-0.5"><i class="fa-solid fa-user text-slate-300 text-[9px]"></i><span class="text-[10px] text-slate-400 font-bold">ゲスト（${gn}）</span></span>`
+        ).join(' ');
+
+        const proofThumbHtml = match.proofImage
+          ? `<img src="${match.proofImage}" onclick="openImageLightboxForMatch('${match.id}')" class="w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer shrink-0" title="プレイ証拠スクショを拡大表示">`
+          : `<div class="w-16 h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300 text-[9px] font-bold text-center shrink-0 p-1">証拠なし</div>`;
+
+        const durationHtml = match.durationMinutes
+          ? `<div class="text-[9px] text-slate-400 font-bold text-center mt-1"><i class="fa-solid fa-hourglass-half mr-0.5"></i>約${match.durationMinutes}分</div>`
+          : '';
+
+      const hasFeedback = match.feedback && match.feedback.trim() !== "";
+      const feedbackHtml = hasFeedback
+        ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 whitespace-pre-wrap break-words"><i class="fa-solid fa-comment-dots text-indigo-400 mr-1"></i>${buildExpandableTextHtml(match.feedback, idPrefix + '-feedback-' + match.id)}</p>`
+        : '';
+      // デジタル版では対戦終了時に参加者全員がコメントできる。誰でもいつでもコメント／
+      // 個別返信できるよう、コメントが無い試合でも常に「みんなのコメント」欄を表示する。
+      const feedbackRepliesHtml = interactive
+        ? renderMatchFeedbackRepliesHtml(match.id)
+        : renderMatchRepliesReadonlyHtml(match.id);
+
+      // マイ戦績用の勝敗バッジ（自分視点）。公開履歴では出さない。
+      let resultBadgeHtml = '';
+      if (opts.selfPlayerId) {
+        const won = match.winnerId === opts.selfPlayerId;
+        resultBadgeHtml = won
+          ? `<span class="text-[10px] font-black text-amber-900 bg-amber-300 rounded-full px-2 py-0.5">WIN</span>`
+          : `<span class="text-[10px] font-black text-slate-500 bg-slate-200 rounded-full px-2 py-0.5">LOSE</span>`;
+      }
+
+      return `
+        <div class="flex flex-col items-center shrink-0">
+          ${proofThumbHtml}
+          ${durationHtml}
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 mb-1 flex-wrap">
+            ${resultBadgeHtml}
+            <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
+            <span class="text-xs text-amber-700 font-bold">👑 ${winner ? winner.name : ((match.guestNames || []).length ? "ゲスト" : "不明")}</span>
+          </div>
+          <div class="flex items-center gap-1 flex-wrap">${memberChipsHtml}${guestChipsHtml ? ' ' + guestChipsHtml : ''}</div>
+          ${feedbackHtml}
+          ${feedbackRepliesHtml}
+        </div>
+      `;
+    }
+
+    // コメントの読み取り専用表示（マイ戦績モーダル用）。返信フォーム・削除ボタンを作らないので
+    // DOMのidを一切使わず、公開履歴側の要素と衝突しない。
+    function renderMatchRepliesReadonlyHtml(matchId) {
+      const all = matchFeedbackReplies
+        .filter(r => r.matchId === matchId)
+        .sort((a, b) => a.createdAt - b.createdAt);
+      if (all.length === 0) {
+        return `<p class="text-[10px] text-slate-300 italic mt-2"><i class="fa-solid fa-comments mr-1"></i>まだコメントはありません。</p>`;
+      }
+      const cards = all.map(r => `
+        <div class="bg-white border border-slate-100 rounded-lg p-2">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[11px] font-bold text-slate-700">${getCommentAuthorName(r)}</span>
+            <span class="text-[9px] text-slate-400 font-mono">${new Date(r.createdAt).toLocaleString('ja-JP')}</span>
+          </div>
+          <p class="text-[11px] text-slate-600 whitespace-pre-wrap break-words">${r.comment}</p>
+        </div>
+      `).join('');
+      return `
+        <div class="mt-2 space-y-1.5">
+          <div class="text-[10px] font-bold text-slate-400"><i class="fa-solid fa-comments mr-1"></i>みんなのコメント</div>
+          ${cards}
+          <p class="text-[9px] text-slate-300">※コメントの投稿・返信は「過去の戦績履歴」から行えます。</p>
+        </div>
+      `;
+    }
+
+    // ユーザー要望2026-08-28「戦績システムからマイ戦績を開けるようにしたい。自分のかかわった
+    // 戦績だけが並ぶ」。マイ戦績バーのボタンから開く。承認済みの試合のうち、自分が参加者
+    // (members) に入っているものだけを新しい順に並べ、自分視点の勝敗バッジを付ける。
+    function openMyHistoryModal() {
+      const me = findMyStatsPlayer();
+      if (!me) return;
+      const stats = computePlayerStats();
+      const myStats = stats[me.id];
+      const mine = matches
+        .filter(m => m.status === 'approved' && (m.members || []).includes(me.id))
+        .sort((a, b) => b.createdAt - a.createdAt);
+      const wins = mine.filter(m => m.winnerId === me.id).length;
+      const rate = mine.length > 0 ? Math.round((wins / mine.length) * 100) : 0;
+
+      const seedCount = players.find(p => p.id === me.id)?.seedMatchesCount || 0;
+      const seedNote = seedCount > 0
+        ? `<p class="text-[10px] text-slate-400 mt-1">※公開前の一括記録ぶん（${seedCount}戦）は1試合ごとの記録が無いため、この一覧には出ません（上の合計には含まれています）。</p>`
+        : '';
+
+      const summaryEl = document.getElementById('my-history-summary');
+      summaryEl.innerHTML = `
+        <div class="flex items-center gap-3 flex-wrap">
+          <div class="shrink-0">${getAvatarElementHtml(myStats, 10)}</div>
+          <div class="min-w-0">
+            <div class="font-bold text-slate-800 text-sm">${myStats.name}</div>
+            <div class="text-[11px] text-slate-500">
+              通算 ${myStats.matchesCount}戦 ${myStats.winsCount}勝（勝率 ${myStats.winRate}%）
+              ／ このリスト内 ${mine.length}戦 ${wins}勝（${rate}%）
+            </div>
+          </div>
+        </div>
+        ${seedNote}
+      `;
+
+      const listEl = document.getElementById('my-history-list');
+      listEl.innerHTML = "";
+      if (mine.length === 0) {
+        listEl.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-8">まだ承認済みの対戦記録がありません。デジタル版でオンライン対戦をすると、ここに並びます。</p>`;
+      } else {
+        for (const match of mine) {
+          const item = document.createElement('div');
+          item.className = "border border-slate-200/80 rounded-xl p-3 flex gap-3 items-start";
+          item.innerHTML = buildMatchHistoryItemInnerHtml(match, {
+            selfPlayerId: me.id,
+            interactive: false, // 返信フォームのid重複を避ける（上のコメント参照）
+            idPrefix: 'myhistory',
+          });
+          listEl.appendChild(item);
+        }
+      }
+      document.getElementById('my-history-modal').classList.remove('hidden');
+    }
+
+    function closeMyHistoryModal() {
+      document.getElementById('my-history-modal').classList.add('hidden');
     }
 
     // 1試合（＝1枚のスクショ）に対して、参加者全員のコメントを一覧で並べる（「みんなのコメント」）。
@@ -4381,6 +4504,9 @@
             ${myStatsChipHtml('勝率', `${myStats.winRate}%`, 'text-amber-300')}
             ${myStatsChipHtml('勝率順位', `${rankText(winRateRank, true)}${rankSub(winRateRank)}`, 'text-indigo-300')}
             ${myStatsChipHtml('対戦数順位', `${rankText(matchRank, false)}${rankSub(matchRank)}`, 'text-indigo-300')}
+            <button onclick="openMyHistoryModal()" class="text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-4 py-2 shadow transition ml-1">
+              <i class="fa-solid fa-scroll mr-1.5"></i>マイ戦績
+            </button>
             <button onclick="logoutFromStats()" class="text-[10px] text-slate-400 hover:text-white underline ml-1">ログアウト</button>
           </div>
         </div>
