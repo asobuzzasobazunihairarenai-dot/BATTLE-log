@@ -115,6 +115,58 @@
     main .bg-white {
       border-color: rgba(211, 163, 88, 0.22);
     }
+    /* 新しいバージョンのお知らせバナー（続き310）。画面最上部に固定。ロゴの金で目立たせる。 */
+    #update-available-banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 60;
+      background: linear-gradient(90deg, #a97c33, #d3a358 45%, #a97c33);
+      color: #2b2118;
+      box-shadow: 0 2px 14px rgba(33, 28, 23, 0.35);
+      padding: 0.5rem 0.9rem;
+      font-family: sans-serif;
+    }
+    .update-banner-row {
+      max-width: 80rem;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .update-banner-label { font-size: 0.8rem; font-weight: bold; }
+    .update-banner-reload {
+      background: #2b2118;
+      color: #f6ebd4;
+      border: none;
+      border-radius: 9999px;
+      padding: 0.3rem 1.1rem;
+      font-size: 0.78rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .update-banner-reload:hover { background: #453d33; }
+    .update-banner-reload:disabled { opacity: 0.6; cursor: default; }
+    .update-banner-close {
+      background: none;
+      border: none;
+      color: rgba(43, 33, 24, 0.65);
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 0.2rem;
+    }
+    .update-banner-close:hover { color: #2b2118; }
+    .update-banner-hint {
+      max-width: 80rem;
+      margin: 0.25rem auto 0;
+      text-align: center;
+      font-size: 0.66rem;
+      color: rgba(43, 33, 24, 0.8);
+    }
     /* 直近3日以内に返信があったことを知らせるバッジを点滅させる */
     @keyframes blink-badge {
       0%, 100% { opacity: 1; }
@@ -1323,12 +1375,140 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202608281050";
+    const BUILD_VERSION = "20260828-131216";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
         el.innerText = `Build: v${BUILD_VERSION}`;
       }
+    }
+
+    // ── デプロイ検知＆更新案内（続き310）──────────────────────────────────────
+    // ユーザー要望「戦績システムでもバージョン更新があれば画面上部にアプリ版みたいに更新ボタンを
+    // 出したい」。デジタル版(src/update-checker.js)と同じ考え方:
+    //  ・コミットのたびに .git/hooks/pre-commit が version.json と上の BUILD_VERSION を
+    //    同じタイムスタンプへ書き換える（＝デプロイのたびに必ず値が変わる）。
+    //  ・version.json を60秒ごとにキャッシュ無視で取得し、**今動いているコード自身の版**
+    //    （BUILD_VERSION。index.htmlと一緒にキャッシュされる）と違えばバナーを出す。
+    //    「最初に取得したversion.json」ではなく実行中コードを基準にするのが要点——GitHub Pagesは
+    //    HTMLを一定時間キャッシュするため、「古いHTMLが動いているのにversion.jsonだけ最新」という
+    //    ズレの時に基準が最新になってしまい、検知できなくなるため。
+    //  ・**勝手にリロードはしない**。戦績の入力途中やコメント記入中に消えると困るので、
+    //    ユーザーが「更新する」を押した時だけ更新する。
+    const UPDATE_CHECK_INTERVAL_MS = 60000;
+    const UPDATE_ATTEMPT_KEY = '7shades-stats-update-attempt';
+    let latestBuildVersion = null;
+    let updateDismissedForVersion = null;
+
+    async function fetchLatestBuildVersion() {
+      try {
+        const res = await fetch(`version.json?cb=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.v ?? null;
+      } catch (err) {
+        return null; // 通信失敗は黙ってスキップ（次の間隔で再試行）
+      }
+    }
+
+    // 直前の「更新する」が空振りだったか（押してリロードしたのに、まだ古いコードが動いている）。
+    // GitHub Pagesは全アセットをキャッシュするため、環境によっては取り直しでも反映されないことが
+    // ある。その時だけハードリフレッシュの手順を添える。
+    function priorUpdateAttemptFailed() {
+      try {
+        const attempted = sessionStorage.getItem(UPDATE_ATTEMPT_KEY);
+        return !!attempted && attempted !== BUILD_VERSION;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // 「更新する」の本体。普通の location.reload() だと、キャッシュ済みのHTML（＝このページの
+    // コード本体）がそのまま再利用されて更新されないことがあるため、先に同一オリジンの
+    // HTML/CSS/JSを cache:"reload" で取り直してHTTPキャッシュを最新にしてからリロードする。
+    async function applyStatsUpdate(btn) {
+      if (btn) { btn.disabled = true; btn.textContent = '更新中…'; }
+      try {
+        if (latestBuildVersion) sessionStorage.setItem(UPDATE_ATTEMPT_KEY, latestBuildVersion);
+      } catch (e) { /* sessionStorage不可でも続行 */ }
+      try {
+        const urls = new Set([location.href.split('#')[0].split('?')[0]]); // このページ自身
+        for (const entry of performance.getEntriesByType('resource')) {
+          const name = (entry.name || '').split('#')[0];
+          if (!name.startsWith(location.origin)) continue;
+          if (entry.initiatorType === 'script' || entry.initiatorType === 'link') urls.add(name);
+        }
+        await Promise.all([...urls].map(u => fetch(u, { cache: 'reload' }).catch(() => {})));
+      } catch (e) { /* 取り直しに失敗してもリロードは試みる */ }
+      location.reload();
+    }
+
+    function showUpdateBanner() {
+      if (document.getElementById('update-available-banner')) return;
+      const banner = document.createElement('div');
+      banner.id = 'update-available-banner';
+
+      const label = document.createElement('span');
+      label.className = 'update-banner-label';
+      label.textContent = '🔄 新しいバージョンがあります';
+
+      const reloadBtn = document.createElement('button');
+      reloadBtn.type = 'button';
+      reloadBtn.className = 'update-banner-reload';
+      reloadBtn.textContent = '更新する';
+      reloadBtn.addEventListener('click', () => applyStatsUpdate(reloadBtn));
+
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'update-banner-close';
+      closeBtn.setAttribute('aria-label', '閉じる');
+      closeBtn.textContent = '×';
+      closeBtn.addEventListener('click', () => {
+        banner.remove();
+        // 閉じたら、その版については再表示しない（さらに新しい版が来たらまた出る）。
+        updateDismissedForVersion = latestBuildVersion;
+      });
+
+      const row = document.createElement('div');
+      row.className = 'update-banner-row';
+      row.appendChild(label);
+      row.appendChild(reloadBtn);
+      row.appendChild(closeBtn);
+      banner.appendChild(row);
+
+      if (priorUpdateAttemptFailed()) {
+        const hint = document.createElement('div');
+        hint.className = 'update-banner-hint';
+        const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || '');
+        hint.textContent = `うまく更新されない場合は、キーボードで ${isMac ? '⌘ + Shift + R' : 'Ctrl + Shift + R'} を押して再読み込みしてください。`;
+        banner.appendChild(hint);
+      }
+
+      document.body.appendChild(banner);
+    }
+
+    async function checkForStatsUpdate() {
+      const v = await fetchLatestBuildVersion();
+      if (!v) return;
+      latestBuildVersion = v;
+      if (v === BUILD_VERSION) {
+        // 追いついた＝更新成功。空振り記録を消す。
+        try {
+          if (sessionStorage.getItem(UPDATE_ATTEMPT_KEY) === BUILD_VERSION) sessionStorage.removeItem(UPDATE_ATTEMPT_KEY);
+        } catch (e) { /* noop */ }
+        return;
+      }
+      if (updateDismissedForVersion === v) return; // この版は閉じられた
+      showUpdateBanner();
+    }
+
+    function initStatsUpdateChecker() {
+      checkForStatsUpdate();
+      setInterval(checkForStatsUpdate, UPDATE_CHECK_INTERVAL_MS);
+      // 別タブから戻ってきた時にもすぐ確かめる（放置していた間にデプロイされている可能性）。
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) checkForStatsUpdate();
+      });
     }
 
     // --- 【新設】カスタム警告/確認ダイアログの表示制御ロジック ---
@@ -4984,6 +5164,7 @@
       subscribeRealtimeSync();
       logVisitIfNeeded();
       startStatsPresence(); // 「いま誰がこのサイトを見ているか」（管理者コンソールに表示）
+      initStatsUpdateChecker(); // 新しいバージョンが出たら画面上部に「更新する」を出す
       // セブン側のログイン中一覧は5分窓のDB値なので、開いている間は30秒ごとに更新する。
       setInterval(() => { if (currentRole === 'admin') refreshAppOnlineUsers(); }, 30000);
 
