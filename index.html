@@ -647,6 +647,17 @@
             </div>
           </div>
 
+          <!-- 投稿者が不明になったコメントの修復ツール（過去の統合で取り残された分の後始末） -->
+          <div id="orphan-comment-section" class="hidden border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-user-slash text-amber-600"></i> 投稿者が不明になっているコメント
+            </h3>
+            <p class="text-xs text-gray-500 mb-2 leading-relaxed">
+              すでに削除されたプレイヤー（過去の統合など）に紐づいたままのコメントです。「不明なプレイヤー」と表示されてしまうので、正しいプレイヤーへ付け替えてください。
+            </p>
+            <div id="orphan-comment-list" class="space-y-3"></div>
+          </div>
+
           <!-- アクセスログセクション -->
           <div class="border-t border-dashed border-gray-100 pt-5">
             <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
@@ -3580,6 +3591,17 @@
         const { error } = await supabaseClient.from('matches').update({ members: newMembers, winner_id: newWinner }).eq('id', m.id);
         if (error) throw error;
       }
+      // 1b. コメントの投稿者も付け替える（続き307）。ユーザー報告「プレイヤー統合したら
+      //     過去の戦績でのコメントが『不明なプレイヤー』表記になってしまう」の原因はここ。
+      //     matches だけ書き換えて match_feedback_replies / game_comments の player_id を
+      //     置き換えていなかったため、統合元の削除後にコメントの投稿者が解決できなくなっていた。
+      const { error: rErr } = await supabaseClient
+        .from('match_feedback_replies').update({ player_id: targetId }).eq('player_id', sourceId);
+      if (rErr) throw rErr;
+      const { error: cErr } = await supabaseClient
+        .from('game_comments').update({ player_id: targetId }).eq('player_id', sourceId);
+      if (cErr) throw cErr;
+
       // 2. 初期戦績(seed)を統合先へ加算
       const source = players.find(p => p.id === sourceId);
       const target = players.find(p => p.id === targetId);
@@ -3619,9 +3641,108 @@
       );
     }
 
+    // --- 投稿者が不明になったコメントの修復（続き307）───────────────────────────────
+    // 過去の統合（コメントの付け替えを行っていなかった頃のもの）で取り残された、削除済み
+    // プレイヤーIDを指したままのコメントを拾い、正しいプレイヤーへ付け替えられるようにする。
+    // 旧プレイヤーIDごとにまとめて付け替えるので、何十件あっても操作は1IDにつき1回で済む。
+    function findOrphanCommentGroups() {
+      const alive = new Set(players.map(p => p.id));
+      const groups = {}; // oldPlayerId -> { replies:[], comments:[] }
+      for (const r of matchFeedbackReplies) {
+        if (!r.playerId || alive.has(r.playerId)) continue;
+        (groups[r.playerId] ??= { replies: [], comments: [] }).replies.push(r);
+      }
+      for (const c of gameComments) {
+        if (!c.playerId || alive.has(c.playerId)) continue;
+        (groups[c.playerId] ??= { replies: [], comments: [] }).comments.push(c);
+      }
+      return groups;
+    }
+
+    function renderOrphanCommentTool() {
+      const section = document.getElementById('orphan-comment-section');
+      const list = document.getElementById('orphan-comment-list');
+      if (!section || !list) return;
+      const groups = findOrphanCommentGroups();
+      const ids = Object.keys(groups);
+      if (ids.length === 0) {
+        section.classList.add('hidden');
+        list.innerHTML = "";
+        return;
+      }
+      section.classList.remove('hidden');
+      const playerOptions = players
+        .slice()
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'))
+        .map(p => `<option value="${p.id}">${p.name}</option>`)
+        .join('');
+
+      list.innerHTML = ids.map(oldId => {
+        const g = groups[oldId];
+        const total = g.replies.length + g.comments.length;
+        // 誰なのかの手がかり: そのコメントが付いている試合の参加者名を並べる。
+        const hintNames = [...new Set(g.replies.flatMap(r => {
+          const m = matches.find(mm => mm.id === r.matchId);
+          return (m?.members || []).map(id => players.find(p => p.id === id)?.name).filter(Boolean);
+        }))];
+        const hintHtml = hintNames.length
+          ? `<div class="text-[10px] text-slate-400 mt-1">この人が書いたコメントが付いている試合の参加者: ${hintNames.join('、')}</div>`
+          : '';
+        const samples = [...g.replies, ...g.comments].slice(0, 3)
+          .map(x => `<li class="truncate">「${(x.comment || '').slice(0, 40)}」</li>`).join('');
+        return `
+          <div class="border border-amber-200 bg-amber-50/40 rounded-xl p-3">
+            <div class="text-xs font-bold text-slate-700">
+              削除済みプレイヤー <span class="font-mono text-[11px] bg-white border border-amber-200 rounded px-1.5 py-0.5">${oldId}</span>
+              のコメント ${total}件
+              <span class="text-[10px] text-slate-400 font-normal">（戦績コメント${g.replies.length}件 / ゲームへの感想${g.comments.length}件）</span>
+            </div>
+            <ul class="text-[11px] text-slate-500 list-disc list-inside mt-1 space-y-0.5">${samples}</ul>
+            ${hintHtml}
+            <div class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center mt-2">
+              <select id="orphan-target-${oldId}" class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+                <option value="">付け替え先のプレイヤーを選択…</option>
+                ${playerOptions}
+              </select>
+              <button onclick="runReassignOrphanComments('${oldId}')" class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2 px-4 rounded-lg shadow transition shrink-0">このプレイヤーに付け替える</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function runReassignOrphanComments(oldId) {
+      const sel = document.getElementById(`orphan-target-${oldId}`);
+      const targetId = sel?.value;
+      if (!targetId) { showAppWarningModal('付け替え先のプレイヤーを選んでください。'); return; }
+      const target = players.find(p => p.id === targetId);
+      showAppConfirmModal(
+        'コメントの投稿者を付け替えますか？',
+        `削除済みプレイヤー「${oldId}」のコメントを、すべて「${target ? target.name : targetId}」の投稿として付け替えます。`,
+        false,
+        async () => {
+          try {
+            const { error: rErr } = await supabaseClient
+              .from('match_feedback_replies').update({ player_id: targetId }).eq('player_id', oldId);
+            if (rErr) throw rErr;
+            const { error: cErr } = await supabaseClient
+              .from('game_comments').update({ player_id: targetId }).eq('player_id', oldId);
+            if (cErr) throw cErr;
+            await loadData();
+            renderAll();
+            showAppWarningModal('コメントの投稿者を付け替えました。');
+          } catch (err) {
+            logDebugEntry(err);
+            showAppWarningModal('付け替え中にエラーが発生しました。もう一度お試しください。');
+          }
+        }
+      );
+    }
+
     // --- 管理者コンソールのレンダリング ---
     function renderAdminConsole() {
       renderMergeToolSelects();
+      renderOrphanCommentTool();
       // 1. 承認待ち戦績リストの構築
       const pendingContainer = document.getElementById('pending-matches-container');
       const pendingList = matches.filter(m => m.status === 'pending');
