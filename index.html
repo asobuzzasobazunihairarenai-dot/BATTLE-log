@@ -6,6 +6,43 @@
   <title>7 SHADES OF S:EVEN 戦績管理システム</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ロゴ（画像素材/ロゴ/LOGO.png）の世界観に合わせた配色へ差し替える（続き309、ユーザー要望
+       「戦績システムのUIの雰囲気をロゴに合わせた感じにしたい。ロゴ自体も使用して」）。
+       ページ全体で indigo が 208箇所・slate が 349箇所・gray が 156箇所（計700超）使われているため、
+       クラスを1つずつ書き換えるのではなく Tailwind のカラーパレット自体を差し替える。
+       こうすると既存のマークアップに一切触れずに全体の色が変わり、後から色味を直すのもここ1箇所で済む。
+       ・indigo → ロゴの箔押しのような金（500番台がロゴの金 #d3a358 付近）
+       ・slate  → 冷たい青灰色ではなく、焦茶〜黒に寄せた温かいインク
+       ・gray   → 羊皮紙（パーチメント）系の温かい下地
+       ・white  → 純白ではなく、ほんのり暖かい白（#fffdf8）
+       amber/rose/emerald 等はロゴの宝石色と喧嘩しないのでそのまま使う。 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            white: '#fffdf8',
+            indigo: {
+              50: '#fbf6ea', 100: '#f6ebd4', 200: '#ecd6ab', 300: '#e0bd7f', 400: '#d3a358',
+              500: '#c1913f', 600: '#a97c33', 700: '#86612a', 800: '#684b21', 900: '#4d3819',
+            },
+            slate: {
+              50: '#faf7f0', 100: '#f3ece0', 200: '#e5dac6', 300: '#cec1a5', 400: '#a3957c',
+              500: '#7b6f5d', 600: '#5d5346', 700: '#453d33', 800: '#2f2922', 900: '#211c17', 950: '#14110d',
+            },
+            gray: {
+              50: '#fcf9f3', 100: '#f6f0e5', 200: '#eae0cd', 300: '#d7caac', 400: '#ac9d81',
+              500: '#837763', 600: '#64594a', 700: '#4b4338', 800: '#342e26', 900: '#232019',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <!-- ロゴのワードマークに近い、字間の広いセリフ体（見出し用）。日本語は明朝へフォールバックする -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Marcellus&display=swap" rel="stylesheet">
   <!-- FontAwesome for Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- html2canvas for PNG Export -->
@@ -13,6 +50,71 @@
   <!-- Supabase (複数人でのデータ共有バックエンド) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
+    /* ── ロゴに合わせた見た目の調整（続き309）──────────────────────────────
+       配色そのものは上の tailwind.config で差し替え済み。ここでは色だけでは出せない
+       「箔押しの金・羊皮紙・細い金の罫線」という質感を足す。 */
+    :root {
+      --seven-gold: #d3a358;        /* ロゴの金（実際の画素値 rgb(211,163,88)） */
+      --seven-gold-deep: #a97c33;
+      --seven-gold-soft: rgba(211, 163, 88, 0.35);
+      --seven-ink: #211c17;
+    }
+    /* 見出しはロゴのワードマーク（字間の広いセリフ体）に寄せる。日本語は明朝へ落とす。 */
+    h1, h2, h3, .seven-serif {
+      font-family: "Marcellus", "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif;
+      letter-spacing: 0.06em;
+    }
+    /* 羊皮紙の下地に、上から金の光がうっすら差す。背景色は bg-gray-100（パレット差し替え済み）。 */
+    body {
+      background-image: radial-gradient(1100px 460px at 50% -12%, rgba(211, 163, 88, 0.22), transparent 70%);
+      background-attachment: fixed;
+    }
+    /* ヘッダー: 焦茶のインクに金の罫線とほのかな光 */
+    header.bg-slate-900 {
+      background-image: radial-gradient(760px 220px at 22% 130%, rgba(211, 163, 88, 0.20), transparent 70%);
+      border-bottom: 1px solid var(--seven-gold-soft);
+      box-shadow: 0 2px 20px rgba(33, 28, 23, 0.28);
+    }
+    .seven-logo {
+      height: 5.5rem;
+      width: auto;
+      /* 透過PNG。暗い地の上で少しだけ発光させて箔押しに見せる */
+      filter: drop-shadow(0 0 14px rgba(211, 163, 88, 0.35));
+    }
+    @media (max-width: 640px) {
+      .seven-logo { height: 4rem; }
+    }
+    .seven-header-rule {
+      width: 1px;
+      align-self: stretch;
+      background: linear-gradient(180deg, transparent, var(--seven-gold-soft) 20%, var(--seven-gold-soft) 80%, transparent);
+    }
+    .seven-header-title {
+      font-size: 0.95rem;
+      color: var(--seven-gold);
+      letter-spacing: 0.24em;
+    }
+    .seven-header-sub {
+      font-size: 0.6rem;
+      letter-spacing: 0.34em;
+      color: rgba(211, 163, 88, 0.6);
+      margin-top: 0.15rem;
+    }
+    /* ニュースティッカー: 黒ベタ → 焦茶のインク＋金の罫線・金の文字 */
+    #news-ticker-bar {
+      background: linear-gradient(90deg, #14110d, #211c17 45%, #14110d) !important;
+      border-top: 1px solid rgba(211, 163, 88, 0.22);
+      border-bottom: 1px solid rgba(211, 163, 88, 0.22);
+      color: #e6d3a3 !important;
+    }
+    /* セクション見出しの下に細い金の罫線を敷く（ロゴの細い金の弧のイメージ） */
+    main h2, main h3 {
+      position: relative;
+    }
+    /* カード類は純白ではなく象牙色。角の丸みはそのまま、縁を金寄りにする。 */
+    main .bg-white {
+      border-color: rgba(211, 163, 88, 0.22);
+    }
     /* 直近3日以内に返信があったことを知らせるバッジを点滅させる */
     @keyframes blink-badge {
       0%, 100% { opacity: 1; }
@@ -82,13 +184,15 @@
   <!-- ヘッダー兼ナビゲーション -->
   <header class="bg-slate-900 text-white shadow-md">
     <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-      <div class="flex items-center gap-3">
-        <div class="bg-indigo-600 p-2.5 rounded-lg shadow-inner">
-          <i class="fa-solid fa-trophy text-2xl text-yellow-300"></i>
-        </div>
-        <div>
-          <h1 class="text-xl font-bold tracking-wider">7 SHADES OF S:EVEN</h1>
-          <p class="text-xs text-slate-400">テストプレイ戦績管理システム</p>
+      <!-- ロゴ（透過PNG）を主役にし、右に「戦績管理システム」という役割名を金の細い罫線で仕切って添える。
+           ゲーム名はロゴの中に入っているので文字では繰り返さない（読み上げ用にsr-onlyで残す）。 -->
+      <div class="flex items-center gap-3 sm:gap-4">
+        <img src="logo.png" alt="7 SHADES OF S:EVEN" class="seven-logo">
+        <div class="seven-header-rule"></div>
+        <div class="py-1">
+          <h1 class="seven-header-title">戦績管理システム</h1>
+          <p class="seven-header-sub">BATTLE RECORDS</p>
+          <span class="sr-only">7 SHADES OF S:EVEN テストプレイ戦績管理システム</span>
         </div>
       </div>
 
