@@ -156,3 +156,15 @@ create policy "admin_news_update" on admin_news for update using (true);
 
 -- 追加機能: ニュースティッカーの流れる速度を管理者が調整できるようにする(秒数=1周にかかる時間。大きいほどゆっくり)
 alter table app_settings add column if not exists ticker_speed_seconds integer not null default 50;
+
+-- 追加修正(2026-08-28): コメント2テーブルにUPDATEポリシーが無く、プレイヤー統合時の
+-- 「投稿者の付け替え」（match_feedback_replies.player_id / game_comments.player_id の更新）が
+-- **エラーも出ずに0行しか更新されない**状態だった（RLSでポリシーが無いUPDATEは、拒否ではなく
+-- 「対象0行」として静かに成功する）。そのため統合後のコメントが「不明なプレイヤー」表示のまま
+-- 残り、管理者コンソールの付け替えツールを押しても何も変わらなかった。
+-- admin_news のUPDATEポリシーが抜けていた時と同じ対処。
+drop policy if exists "match_feedback_replies_update" on match_feedback_replies;
+create policy "match_feedback_replies_update" on match_feedback_replies for update using (true);
+
+drop policy if exists "game_comments_update" on game_comments;
+create policy "game_comments_update" on game_comments for update using (true);

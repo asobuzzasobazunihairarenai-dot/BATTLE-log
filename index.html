@@ -658,6 +658,30 @@
             <div id="orphan-comment-list" class="space-y-3"></div>
           </div>
 
+          <!-- いま誰がいるか（リアルタイム。管理者コンソール内なので管理者だけが見られる） -->
+          <div class="border-t border-dashed border-gray-100 pt-5">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <i class="fa-solid fa-tower-broadcast text-emerald-600"></i> いま誰がいるか（リアルタイム）
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="border border-emerald-100 bg-emerald-50/40 rounded-xl p-3">
+                <div class="text-xs font-bold text-emerald-800 mb-1.5">
+                  <i class="fa-solid fa-trophy mr-1"></i>この戦績サイトを見ている人
+                  <span id="live-stats-count" class="ml-1 font-mono">-</span>
+                </div>
+                <div id="live-stats-list" class="text-[11px] text-slate-600 space-y-0.5"></div>
+              </div>
+              <div class="border border-indigo-100 bg-indigo-50/40 rounded-xl p-3">
+                <div class="text-xs font-bold text-indigo-800 mb-1.5">
+                  <i class="fa-solid fa-gamepad mr-1"></i>セブン（デジタル版）にログイン中
+                  <span id="live-app-count" class="ml-1 font-mono">-</span>
+                </div>
+                <div id="live-app-list" class="text-[11px] text-slate-600 space-y-0.5"></div>
+                <div id="live-app-note" class="text-[10px] text-slate-400 mt-1.5"></div>
+              </div>
+            </div>
+          </div>
+
           <!-- アクセスログセクション -->
           <div class="border-t border-dashed border-gray-100 pt-5">
             <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
@@ -3595,12 +3619,19 @@
       //     過去の戦績でのコメントが『不明なプレイヤー』表記になってしまう」の原因はここ。
       //     matches だけ書き換えて match_feedback_replies / game_comments の player_id を
       //     置き換えていなかったため、統合元の削除後にコメントの投稿者が解決できなくなっていた。
-      const { error: rErr } = await supabaseClient
-        .from('match_feedback_replies').update({ player_id: targetId }).eq('player_id', sourceId);
+      // RLSでUPDATEポリシーが無いと「エラー無しで0行更新」になるため、更新できたかを実際に確認する
+      // （supabase_setup.sql 末尾の match_feedback_replies_update / game_comments_update が必要）。
+      const hadReplies = matchFeedbackReplies.some(r => r.playerId === sourceId);
+      const hadComments = gameComments.some(c => c.playerId === sourceId);
+      const { data: rRows, error: rErr } = await supabaseClient
+        .from('match_feedback_replies').update({ player_id: targetId }).eq('player_id', sourceId).select('id');
       if (rErr) throw rErr;
-      const { error: cErr } = await supabaseClient
-        .from('game_comments').update({ player_id: targetId }).eq('player_id', sourceId);
+      const { data: cRows, error: cErr } = await supabaseClient
+        .from('game_comments').update({ player_id: targetId }).eq('player_id', sourceId).select('id');
       if (cErr) throw cErr;
+      if (((hadReplies && !(rRows?.length)) || (hadComments && !(cRows?.length)))) {
+        throw new Error('コメントの付け替えができませんでした（DBのUPDATEポリシー不足）。統合を中止しました。');
+      }
 
       // 2. 初期戦績(seed)を統合先へ加算
       const source = players.find(p => p.id === sourceId);
@@ -3722,15 +3753,29 @@
         false,
         async () => {
           try {
-            const { error: rErr } = await supabaseClient
-              .from('match_feedback_replies').update({ player_id: targetId }).eq('player_id', oldId);
+            // ハマりどころ（ユーザー報告「付け替える押したけどつけ変わってない」）:
+            // RLSでUPDATEポリシーが無いテーブルを更新しても、Supabaseは**エラーを返さず
+            // 0行だけ更新して成功扱い**になる。そのため「成功しました」と出るのに何も
+            // 変わらない、という分かりにくい失敗になっていた。.select() で実際に更新された
+            // 行を受け取り、0件なら権限不足として理由を明示する。
+            const { data: rRows, error: rErr } = await supabaseClient
+              .from('match_feedback_replies').update({ player_id: targetId }).eq('player_id', oldId).select('id');
             if (rErr) throw rErr;
-            const { error: cErr } = await supabaseClient
-              .from('game_comments').update({ player_id: targetId }).eq('player_id', oldId);
+            const { data: cRows, error: cErr } = await supabaseClient
+              .from('game_comments').update({ player_id: targetId }).eq('player_id', oldId).select('id');
             if (cErr) throw cErr;
+            const changed = (rRows?.length || 0) + (cRows?.length || 0);
+            if (changed === 0) {
+              showAppWarningModal(
+                'データベース側の権限設定が足りないため、付け替えできませんでした。' +
+                'SupabaseのSQL Editorで supabase_setup.sql の末尾にある ' +
+                '「コメントのUPDATEポリシー追加」を実行してから、もう一度お試しください。'
+              );
+              return;
+            }
             await loadData();
             renderAll();
-            showAppWarningModal('コメントの投稿者を付け替えました。');
+            showAppWarningModal(`コメントの投稿者を付け替えました（${changed}件）。`);
           } catch (err) {
             logDebugEntry(err);
             showAppWarningModal('付け替え中にエラーが発生しました。もう一度お試しください。');
@@ -3739,10 +3784,96 @@
       );
     }
 
+    // --- いま誰がいるか（リアルタイム、管理者コンソール内）──────────────────────────
+    // ユーザー要望2026-08-28「セブンアプリ・戦績システムにリアルタイムで誰が何人ログイン
+    // しているかを管理者のみに表示させたい」。2つを別々の仕組みで出す:
+    //  (1) この戦績サイトを見ている人 … Supabase Realtime の presence（本当にリアルタイム。
+    //      DBもSQLも不要。ページを開いている間だけチャンネルに参加し、離れると即座に消える）
+    //  (2) セブン（デジタル版）にログイン中の人 … デジタル版が2分おきに記録している
+    //      so7_user_profiles.last_seen_at を、管理者専用RPC so7_get_admin_stats() 経由で取得
+    //      （「5分以内に動きがあった人＝ログイン中」。RPC側でメールアドレスを見て管理者以外は
+    //      not_authorized で弾く＝サーバー側で守られている）。
+    // 表示先は管理者コンソールの中なので、一般テスターには最初から見えない。
+    let statsPresenceChannel = null;
+    let statsPresenceMembers = [];
+
+    function presenceDisplayName() {
+      // presenceは同じチャンネルの全員に配信されるため、メールアドレスなどは絶対に載せない。
+      if (!myAuthUser) return 'ゲスト（閲覧中）';
+      const me = findMyStatsPlayer();
+      return me ? me.name : 'ログイン中（プレイヤー未連携）';
+    }
+
+    function startStatsPresence() {
+      if (statsPresenceChannel) return;
+      const key = myAuthUser?.id || ('anon-' + Math.random().toString(36).slice(2, 10));
+      statsPresenceChannel = supabaseClient.channel('stats-site-presence', { config: { presence: { key } } });
+      statsPresenceChannel
+        .on('presence', { event: 'sync' }, () => {
+          const state = statsPresenceChannel.presenceState();
+          statsPresenceMembers = Object.values(state).flat();
+          renderLivePresence();
+        })
+        .subscribe(async (status) => {
+          if (status !== 'SUBSCRIBED') return;
+          await statsPresenceChannel.track({ name: presenceDisplayName(), loggedIn: !!myAuthUser, at: Date.now() });
+        });
+    }
+
+    // ログイン状態が変わったら自分の表示名を出し直す（ゲスト→本人名）。
+    async function retrackStatsPresence() {
+      if (!statsPresenceChannel) return;
+      try {
+        await statsPresenceChannel.track({ name: presenceDisplayName(), loggedIn: !!myAuthUser, at: Date.now() });
+      } catch (err) { /* best-effort */ }
+    }
+
+    function renderLivePresence() {
+      const countEl = document.getElementById('live-stats-count');
+      const listEl = document.getElementById('live-stats-list');
+      if (!countEl || !listEl) return;
+      const members = statsPresenceMembers;
+      countEl.innerText = `${members.length}人`;
+      listEl.innerHTML = members.length === 0
+        ? `<div class="text-slate-400 italic">（誰もいません）</div>`
+        : members
+            .slice()
+            .sort((a, b) => Number(b.loggedIn) - Number(a.loggedIn))
+            .map(m => `<div><i class="fa-solid fa-circle text-[6px] ${m.loggedIn ? 'text-emerald-500' : 'text-slate-300'} align-middle mr-1.5"></i>${m.name || '？'}</div>`)
+            .join('');
+    }
+
+    async function refreshAppOnlineUsers() {
+      const countEl = document.getElementById('live-app-count');
+      const listEl = document.getElementById('live-app-list');
+      const noteEl = document.getElementById('live-app-note');
+      if (!countEl || !listEl) return;
+      if (currentRole !== 'admin' || !myAuthUser) return; // 管理者以外は呼ばない（RPCが弾く）
+      try {
+        const { data, error } = await supabaseClient.rpc('so7_get_admin_stats');
+        if (error) throw error;
+        const online = data?.onlineUsers || [];
+        countEl.innerText = `${online.length}人`;
+        listEl.innerHTML = online.length === 0
+          ? `<div class="text-slate-400 italic">（誰もいません）</div>`
+          : online.map(u => {
+              const t = u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+              return `<div><i class="fa-solid fa-circle text-[6px] text-indigo-500 align-middle mr-1.5"></i>${u.displayName}<span class="text-[9px] text-slate-400 ml-1.5">${t}</span></div>`;
+            }).join('');
+        noteEl.innerText = `直近5分に動きがあった人。登録${data?.totalUsers ?? '-'}人 / 総訪問${data?.totalVisits ?? '-'}回 / 本日${data?.visitsToday ?? '-'}回`;
+      } catch (err) {
+        countEl.innerText = '-';
+        listEl.innerHTML = `<div class="text-slate-400 italic">取得できませんでした（管理者アカウントでログインしていない可能性）。</div>`;
+        noteEl.innerText = '';
+      }
+    }
+
     // --- 管理者コンソールのレンダリング ---
     function renderAdminConsole() {
       renderMergeToolSelects();
       renderOrphanCommentTool();
+      renderLivePresence();
+      if (currentRole === 'admin') refreshAppOnlineUsers();
       // 1. 承認待ち戦績リストの構築
       const pendingContainer = document.getElementById('pending-matches-container');
       const pendingList = matches.filter(m => m.status === 'pending');
@@ -4555,6 +4686,7 @@
         loadRankedRanks().then(() => {
           if (players.length > 0) renderAll();
         });
+        retrackStatsPresence(); // 「いま誰がいるか」の自分の表示名を更新（ゲスト→本人名）
       });
       syncAdminRoleFromLogin();
       renderMyStatsBar();
@@ -4747,6 +4879,9 @@
       renderAll();
       subscribeRealtimeSync();
       logVisitIfNeeded();
+      startStatsPresence(); // 「いま誰がこのサイトを見ているか」（管理者コンソールに表示）
+      // セブン側のログイン中一覧は5分窓のDB値なので、開いている間は30秒ごとに更新する。
+      setInterval(() => { if (currentRole === 'admin') refreshAppOnlineUsers(); }, 30000);
 
       // クリップボード貼り付け(Ctrl+V)ゾーンの有効化
       setupPasteZone('paste-zone-box', (dataUrl) => {
