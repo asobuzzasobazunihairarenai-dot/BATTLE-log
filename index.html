@@ -109,6 +109,10 @@
     </div>
   </header>
 
+  <!-- マイ戦績バー (7 SHADES OF S:EVEN デジタル版と同じアカウントでログインすると自分の戦績が出る。
+       ログインしていない人にはログインの誘いだけを小さく出す＝閲覧は今まで通り誰でも自由) -->
+  <div id="my-stats-bar" class="bg-slate-900 border-b border-slate-800"></div>
+
   <!-- 直近ニュースティッカー (直近コメント・戦績・登録者・管理者ニュースを右から左に流す) -->
   <div class="bg-black text-white overflow-hidden whitespace-nowrap border-b border-slate-800 py-2" id="news-ticker-bar">
     <div id="news-ticker-track" class="inline-flex items-center gap-10 news-ticker-scroll">
@@ -1393,6 +1397,10 @@
       return {
         id: row.id,
         name: row.name,
+        // デジタル版(7 SHADES OF S:EVEN デジタル版)が対局登録時に紐づけるSupabaseアカウントのID。
+        // 「マイ戦績」で自分の行を特定するのに使う。playerToRowには含めない——このサイトからの
+        // 保存(update/insert)でうっかり連携を上書き・消去しないようにするため（読み取り専用）。
+        userId: row.user_id || null,
         discordId: row.discord_id || "",
         avatar: row.avatar_url || "",
         customTriangleColor: row.custom_triangle_color || "",
@@ -1963,6 +1971,7 @@
       renderImportantNewsSection();
       updateActivityBadges();
       updatePendingBanner();
+      renderMyStatsBar(); // マイ戦績バー（データが更新されるたびに自分の戦績も最新にする）
 
       const totalApprovedMatches = matches.filter(m => m.status === 'approved').length;
       document.getElementById('total-matches-count').innerText = `総プレイ承認回数: ${totalApprovedMatches}回`;
@@ -4176,7 +4185,211 @@
         .subscribe();
     }
 
+    // ===== マイ戦績（デジタル版と同じアカウントでのログイン） =====
+    // ユーザー要望2026-08-28「戦績システムもログイン制にしたい。セブンアプリでログインしていれば
+    // そのアカウントで自動ログインという形が望ましい。そのうえでマイ戦績を見れるようにしたい。
+    // UIに自分のアバターとユーザー名・戦績ステータスなどを表示させておくとテンション上がるかも」。
+    //
+    // 仕組み:
+    //  ・デジタル版と「同じSupabaseプロジェクト」かつ「同じGitHub Pagesのオリジン」なので、
+    //    あちらでログイン済みならセッション(localStorage)がそのまま共有され、このページを
+    //    開いただけで自動的にログイン状態になる（新たな仕組みは不要）。共有されない状況
+    //    （別ブラウザ等）でも「Googleでログイン」を1回押せば同じアカウントとして入れる。
+    //  ・閲覧は今まで通り誰でも自由（ユーザー確定方針）。ログインすると自分の戦績カードが増えるだけ。
+    //  ・自分が誰かは players.user_id（デジタル版が対局登録時に紐づける）で判定する。連携が
+    //    まだ無い人には、その旨と手順だけ案内する（このサイトから勝手に作らない）。
+    let myAuthUser = null;
+
+    function statsAuthRedirectUrl() {
+      // ハッシュやクエリを持ち込むとOAuthの戻り先が汚れるため、素のページURLへ戻す。
+      return location.origin + location.pathname;
+    }
+
+    async function initMyStatsAuth() {
+      try {
+        const { data } = await supabaseClient.auth.getSession();
+        myAuthUser = data?.session?.user ?? null;
+      } catch (err) {
+        console.error('getSession failed', err);
+        myAuthUser = null;
+      }
+      // ログイン/ログアウト・別タブでの状態変化にも追従する。
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        myAuthUser = session?.user ?? null;
+        renderMyStatsBar();
+      });
+      renderMyStatsBar();
+    }
+
+    async function loginWithGoogleForStats() {
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: statsAuthRedirectUrl() }
+        });
+        if (error) throw error;
+      } catch (err) {
+        alert('ログインに失敗しました: ' + (err.message || err));
+      }
+    }
+
+    async function logoutFromStats() {
+      try {
+        await supabaseClient.auth.signOut();
+      } catch (err) {
+        console.error('signOut failed', err);
+      }
+      myAuthUser = null;
+      renderMyStatsBar();
+    }
+
+    // 自分のSupabaseアカウントに紐づく戦績プレイヤー（未連携ならnull）
+    function findMyStatsPlayer() {
+      if (!myAuthUser) return null;
+      return players.find(p => p.userId && p.userId === myAuthUser.id) || null;
+    }
+
+    // 自分の順位を、画面のランキングとまったく同じルールで求める。
+    //  ・勝率順位: 運営枠(isStaff)を除いた承認済みのうち、「実対戦者の平均対戦数の50%」を
+    //    超える対戦数の人だけが対象（renderTop3Rankingと同じ）。
+    //  ・対戦数順位: 参加基準なし（renderMatchCountRankingと同じ）。
+    //  ・同率はどちらも同順位（dense rank）。
+    function computeMyRankInfo(myStats, approvedStatsList) {
+      const rankable = approvedStatsList.filter(p => !p.isStaff);
+      const active = rankable.filter(p => p.matchesCount > 0);
+      const avg = active.length > 0 ? active.reduce((s, p) => s + p.matchesCount, 0) / active.length : 0;
+      const threshold = avg * 0.5;
+
+      const denseRankOf = (list, cmp, eq) => {
+        const sorted = [...list].sort(cmp);
+        let rank = 0;
+        let prev = null;
+        let myRank = null;
+        for (const p of sorted) {
+          if (prev === null || !eq(p, prev)) rank += 1;
+          prev = p;
+          if (p.id === myStats.id) { myRank = rank; break; }
+        }
+        return { rank: myRank, total: sorted.length };
+      };
+
+      const winRateEligible = rankable.filter(p => p.matchesCount > threshold);
+      const winRateRank = winRateEligible.some(p => p.id === myStats.id)
+        ? denseRankOf(
+            winRateEligible,
+            (a, b) => (b.winRate - a.winRate) || (b.winsCount - a.winsCount) || (b.matchesCount - a.matchesCount),
+            (a, b) => a.winRate === b.winRate && a.winsCount === b.winsCount && a.matchesCount === b.matchesCount
+          )
+        : { rank: null, total: winRateEligible.length };
+
+      const matchRank = rankable.some(p => p.id === myStats.id)
+        ? denseRankOf(
+            rankable,
+            (a, b) => (b.matchesCount - a.matchesCount) || (b.winsCount - a.winsCount) || (b.winRate - a.winRate),
+            (a, b) => a.matchesCount === b.matchesCount && a.winsCount === b.winsCount && a.winRate === b.winRate
+          )
+        : { rank: null, total: rankable.length };
+
+      return { winRateRank, matchRank, threshold };
+    }
+
+    function myStatsChipHtml(label, value, accentClass) {
+      return `
+        <div class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-center min-w-[68px]">
+          <div class="text-[9px] text-slate-400 font-bold leading-none mb-1">${label}</div>
+          <div class="font-mono font-black text-sm leading-none ${accentClass || 'text-white'}">${value}</div>
+        </div>
+      `;
+    }
+
+    // マイ戦績バーの描画。renderAll()（データ読み込み後）と、ログイン状態が変わった時に呼ばれる。
+    function renderMyStatsBar() {
+      const bar = document.getElementById('my-stats-bar');
+      if (!bar) return;
+
+      if (!myAuthUser) {
+        bar.innerHTML = `
+          <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-end gap-3 flex-wrap">
+            <span class="text-[11px] text-slate-400">ログインすると自分の戦績（対戦数・勝率・順位）が表示されます</span>
+            <button onclick="loginWithGoogleForStats()" class="text-xs font-bold bg-white text-slate-800 hover:bg-slate-200 rounded-full px-4 py-1.5 shadow transition">
+              <i class="fa-brands fa-google mr-1.5"></i>Googleでログイン
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      // データ読み込み前（auth側が先に確定することがある）はまだ判定できない。
+      if (players.length === 0) {
+        bar.innerHTML = `<div class="max-w-7xl mx-auto px-4 py-2 text-[11px] text-slate-400">戦績を読み込み中…</div>`;
+        return;
+      }
+
+      const me = findMyStatsPlayer();
+      if (!me) {
+        bar.innerHTML = `
+          <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
+            <span class="text-[11px] text-slate-300">
+              ログイン中ですが、このアカウントはまだ戦績のプレイヤーと連携されていません。
+              <span class="text-slate-400">デジタル版でオンライン対戦をすると自動的に登録・連携されます（既に登録済みの方はデジタル版のマイページから連携できます）。</span>
+            </span>
+            <button onclick="logoutFromStats()" class="ml-auto text-[10px] text-slate-400 hover:text-white underline">ログアウト</button>
+          </div>
+        `;
+        return;
+      }
+
+      const stats = computePlayerStats();
+      const myStats = stats[me.id];
+      if (!myStats) {
+        bar.innerHTML = `<div class="max-w-7xl mx-auto px-4 py-2 text-[11px] text-slate-400">戦績を読み込み中…</div>`;
+        return;
+      }
+
+      const approvedStatsList = Object.values(stats).filter(p => p.status === 'approved');
+      const { winRateRank, matchRank, threshold } = computeMyRankInfo(myStats, approvedStatsList);
+      const tier = getTierInfo(myStats.matchesCount, myStats.customTriangleColor);
+      const avatarHtml = getAvatarElementHtml(myStats, 14);
+      // 順位が出ない理由（運営枠は集計対象外／勝率ランキングは平均対戦数の50%超が参加基準）を、
+      // 「—」とだけ出して不安にさせないよう、その場に短く書く。
+      const noRankLabel = (isWinRate) => {
+        if (myStats.isStaff) return '運営枠';
+        if (isWinRate) return `あと${Math.max(1, Math.ceil(threshold + 0.0001) - myStats.matchesCount)}戦`;
+        return '—';
+      };
+      const rankText = (r, isWinRate) =>
+        r.rank ? `${r.rank}位` : `<span class="text-[10px] text-slate-400">${noRankLabel(isWinRate)}</span>`;
+      const rankSub = (r) => (r.rank ? `<span class="text-[9px] text-slate-400">/${r.total}人</span>` : '');
+      const pendingNote = myStats.status === 'approved'
+        ? ''
+        : `<span class="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded px-1.5 py-0.5 ml-2">承認待ち</span>`;
+
+      bar.innerHTML = `
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4 flex-wrap">
+          <div class="shrink-0">${avatarHtml}</div>
+          <div class="min-w-0">
+            <div class="text-white font-bold text-sm truncate flex items-center">
+              ${myStats.name}${pendingNote}
+            </div>
+            <div class="text-[10px] text-slate-400 mt-0.5">
+              <i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i>${tier.label}
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap ml-auto">
+            ${myStatsChipHtml('対戦数', `${myStats.matchesCount}`, 'text-white')}
+            ${myStatsChipHtml('勝利数', `${myStats.winsCount}`, 'text-white')}
+            ${myStatsChipHtml('勝率', `${myStats.winRate}%`, 'text-amber-300')}
+            ${myStatsChipHtml('勝率順位', `${rankText(winRateRank, true)}${rankSub(winRateRank)}`, 'text-indigo-300')}
+            ${myStatsChipHtml('対戦数順位', `${rankText(matchRank, false)}${rankSub(matchRank)}`, 'text-indigo-300')}
+            <button onclick="logoutFromStats()" class="text-[10px] text-slate-400 hover:text-white underline ml-1">ログアウト</button>
+          </div>
+        </div>
+      `;
+    }
+
     document.addEventListener('DOMContentLoaded', async function() {
+      // ログイン状態の確認はデータ読み込みと並行して始める（バーは両方が揃った時点で完成する）。
+      initMyStatsAuth();
       await loadData();
       updateBoardDateTime();
       updateBuildVersionLabel();
