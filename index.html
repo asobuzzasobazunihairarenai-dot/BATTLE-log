@@ -84,6 +84,20 @@
     @media (max-width: 640px) {
       .seven-logo { height: 4rem; }
     }
+    /* 続き312: ロゴの7つの宝石色を、ヘッダー下の細い帯として敷く（"7 SHADES"のモチーフ）。
+       ロゴから採った色をそのまま順に並べる。 */
+    .seven-spectrum-rule {
+      height: 3px;
+      background: linear-gradient(90deg,
+        #d2694a 0%, #d2694a 14.28%,
+        #e08b4b 14.28%, #e08b4b 28.56%,
+        #e6bc4d 28.56%, #e6bc4d 42.84%,
+        #7fa98c 42.84%, #7fa98c 57.12%,
+        #7fb3ae 57.12%, #7fb3ae 71.4%,
+        #e08a8a 71.4%, #e08a8a 85.68%,
+        #a57c9b 85.68%, #a57c9b 100%);
+      opacity: 0.85;
+    }
     .seven-header-rule {
       width: 1px;
       align-self: stretch;
@@ -263,6 +277,8 @@
         <span id="build-version-label" class="text-[9px] text-slate-500 font-mono tracking-wider mr-2">Build: v...</span>
       </div>
     </div>
+    <!-- ロゴの7つの宝石色の帯（"7 SHADES"のモチーフ、続き312） -->
+    <div class="seven-spectrum-rule"></div>
   </header>
 
   <!-- マイ戦績バー (7 SHADES OF S:EVEN デジタル版と同じアカウントでログインすると自分の戦績が出る。
@@ -637,6 +653,26 @@
                 </div>
               </div>
 
+              <!-- 段位（ランク戦）ランキング パネル（続き312） -->
+              <div class="bg-gradient-to-br from-indigo-500 via-indigo-800 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
+                <div class="flex justify-center mb-2">
+                  <span class="text-[10px] font-black text-indigo-100 bg-white/15 px-3 py-1 rounded-full uppercase tracking-widest">💎 段位部門</span>
+                </div>
+                <div class="flex items-center justify-center gap-2 mb-1">
+                  <i class="fa-solid fa-gem text-indigo-200 text-lg"></i>
+                  <h3 class="text-sm font-black text-white uppercase tracking-widest">段位ランキング TOP3</h3>
+                  <button onclick="openRankingInfoModal('rankbadge')" class="text-white/60 hover:text-white transition" title="段位ランキングについて">
+                    <i class="fa-solid fa-circle-info"></i>
+                  </button>
+                </div>
+                <div class="text-center mb-4">
+                  <span id="rankbadge-ranking-note" class="text-[10px] text-white/40 font-mono"></span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="rankbadge-ranking-container">
+                  <!-- JSで動的構築 -->
+                </div>
+              </div>
+
               <!-- 対戦数ランキング パネル -->
               <div class="bg-gradient-to-br from-orange-600 via-orange-800 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
                 <div class="flex justify-center mb-2">
@@ -679,6 +715,12 @@
                   <i class="fa-solid fa-users text-indigo-500"></i> 登録プレイヤー戦績一覧
                 </h3>
                 <div class="flex items-center gap-2 flex-wrap shrink-0">
+                  <!-- プレイヤー検索（続き312）。名前・Discord IDの部分一致で絞り込む -->
+                  <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-2 top-1/2 -translate-y-1/2 text-[9px] text-slate-400"></i>
+                    <input type="search" id="players-search-input" oninput="changePlayersSearch()" placeholder="名前で検索"
+                      class="text-[10px] bg-slate-50 border border-slate-200 rounded pl-6 pr-2 py-0.5 w-28 sm:w-36 text-slate-600 outline-none focus:border-indigo-400">
+                  </div>
                   <span class="text-[10px] font-bold text-slate-400">並び順:</span>
                   <!-- 並び替え（ソート機能） -->
                   <select id="players-sort-select" onchange="changePlayersSort()" class="text-[10px] font-bold bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-600 outline-none focus:border-indigo-400">
@@ -1375,7 +1417,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260828-173937";
+    const BUILD_VERSION = "20260828-174708";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1581,6 +1623,10 @@
       if (type === 'matchcount') {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>対戦数ランキングについて`;
         descEl.innerHTML = `対戦数ランキングには<b>参加基準はありません</b>。承認された戦績の中で、単純に対戦数が多い順にランクインします。<br><br><b>同順位の決め方:</b> ①対戦数 → ②勝利数 → ③勝率 の順で比較し、すべて同じ場合は同順位として併記します。`;
+        detailEl.classList.add('hidden');
+      } else if (type === 'rankbadge') {
+        titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>段位ランキングについて`;
+        descEl.innerHTML = `デジタル版の<b>ランク戦（フリーマッチ）</b>で上がる段位（ブロンズ〜レジェンド）のランキングです。この戦績サイトの対戦数・勝率とは別のもので、ランク戦を遊んだ人だけが対象になります。<br><br><b>同順位の決め方:</b> ①段位 → ②レジェンドポイント → ③七色ゲージ → ④対戦数 の順で比較します。<br><br>※段位はログインした人だけが見られる情報のため、ログインしていない間は表示されません。`;
         detailEl.classList.add('hidden');
       } else if (type === 'wincount') {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>勝利数ランキングについて`;
@@ -2023,7 +2069,7 @@
 
     async function loadData() {
       await seedInitialDataIfEmpty();
-      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB(), loadGameCommentsFromDB(), loadAdminNewsFromDB(), loadMatchFeedbackRepliesFromDB(), loadRankedRanks()]);
+      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB(), loadGameCommentsFromDB(), loadAdminNewsFromDB(), loadMatchFeedbackRepliesFromDB(), loadRankedRanks(), loadBugReportCounts()]);
     }
 
     // ── ランク戦の段位バッジ（続き306、ユーザー要望2026-08-28「戦績システムにもランクバッジを
@@ -2041,10 +2087,13 @@
 
     async function loadRankedRanks() {
       try {
-        const { data, error } = await supabaseClient.from('so7_ranked_players').select('user_id, rank');
+        // 続き312: 段位ランキングの同率判定でレジェンドポイント・七色ゲージも使うため、まとめて取る。
+        const { data, error } = await supabaseClient.from('so7_ranked_players').select('user_id, rank, gauge, legend_points');
         if (error) throw error;
         const map = {};
-        for (const row of data || []) map[row.user_id] = row.rank ?? 0;
+        for (const row of data || []) {
+          map[row.user_id] = { rank: row.rank ?? 0, gauge: row.gauge ?? 0, legendPoints: row.legend_points ?? 0 };
+        }
         rankedRankByUserId = map;
       } catch (err) {
         // 未ログイン（authenticated でない）・ランク用SQL未適用などでは読めない。バッジを出さないだけ。
@@ -2058,9 +2107,9 @@
       if (sizePx < 28) return '';
       const userId = player.userId || players.find(p => p.id === player.id)?.userId;
       if (!userId) return '';
-      const raw = rankedRankByUserId[userId];
-      if (raw === undefined || raw === null) return '';
-      const idx = Math.max(0, Math.min(RANK_KEYS.length - 1, Math.round(Number(raw) || 0)));
+      const info = rankedRankByUserId[userId];
+      if (!info) return '';
+      const idx = Math.max(0, Math.min(RANK_KEYS.length - 1, Math.round(Number(info.rank) || 0)));
       const badgePx = Math.max(14, Math.round(sizePx * 0.46));
       const offset = Math.round(badgePx * 0.22); // この分だけアバターに食い込ませる
       return `<img src="${RANK_BADGE_BASE}${RANK_KEYS[idx]}.webp" alt="${RANK_NAMES[idx]}"
@@ -2344,6 +2393,7 @@
       const approvedStatsList = statsList.filter(p => p.status === 'approved');
 
       renderTop3Ranking(approvedStatsList);
+      renderRankBadgeRanking(approvedStatsList);
       renderMatchCountRanking(approvedStatsList);
       renderWinCountRanking(approvedStatsList);
       renderPlayersGrid(approvedStatsList);
@@ -2383,6 +2433,10 @@
     }
 
     // 過去の戦績履歴 (参加者を含め全員に公開。新しい順)
+    // 対戦履歴の表示件数（続き312）。renderAllのたびにリセットせず、「もっと見る」で増えた状態を保つ。
+    const MATCH_HISTORY_PAGE_SIZE = 10;
+    let matchHistoryVisibleCount = MATCH_HISTORY_PAGE_SIZE;
+
     function renderPublicMatchHistory() {
       const container = document.getElementById('match-history-container');
       if (!container) return;
@@ -2398,12 +2452,27 @@
         return;
       }
 
-      approvedList.forEach(match => {
+      // 続き312: 試合が増えても重くならないよう、最初は matchHistoryVisibleCount 件だけ描画し、
+      // 「もっと見る」で追加していく（1試合ぶんのカードはコメント欄まで含むので、全件描画は重い）。
+      const shown = approvedList.slice(0, matchHistoryVisibleCount);
+      shown.forEach(match => {
         const item = document.createElement('div');
         item.className = "border border-slate-200/80 rounded-xl p-3 flex gap-3 items-start";
         item.innerHTML = buildMatchHistoryItemInnerHtml(match);
         container.appendChild(item);
       });
+      if (approvedList.length > shown.length) {
+        const rest = approvedList.length - shown.length;
+        const moreBtn = document.createElement('button');
+        moreBtn.type = 'button';
+        moreBtn.className = 'w-full text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl py-2.5 transition';
+        moreBtn.innerHTML = `<i class="fa-solid fa-chevron-down mr-1.5"></i>もっと見る（残り${rest}件）`;
+        moreBtn.addEventListener('click', () => {
+          matchHistoryVisibleCount += MATCH_HISTORY_PAGE_SIZE;
+          renderPublicMatchHistory();
+        });
+        container.appendChild(moreBtn);
+      }
 
       // 公開前の初期戦績(ベース値)は最古の記録として一覧の最後に追加する
       if (seedPlayers.length > 0) {
@@ -3209,6 +3278,81 @@
       });
     }
 
+    // ── 段位（ランク戦）ランキング TOP3（続き312、ユーザー要望「ランクバッジのトップ3もあってもいい」）
+    // 並び順: 段位 → レジェンドポイント → 七色ゲージ → 対戦数。運営枠(isStaff)は他のランキングと
+    // 同じく対象外。段位は so7_ranked_players から読むため、**ログインしていないと取得できない**
+    // （SELECTがauthenticated限定）。その場合はその旨を出す。
+    function renderRankBadgeRanking(approvedStatsList) {
+      const container = document.getElementById('rankbadge-ranking-container');
+      const noteEl = document.getElementById('rankbadge-ranking-note');
+      if (!container) return;
+      container.innerHTML = "";
+
+      const info = (p) => (p.userId ? rankedRankByUserId[p.userId] : null);
+      const rankable = approvedStatsList.filter(p => !p.isStaff && info(p));
+      if (rankable.length === 0) {
+        container.innerHTML = `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">${
+          myAuthUser ? 'まだランク戦（フリーマッチ）の記録があるプレイヤーがいません。' : 'ログインすると段位ランキングが表示されます。'
+        }</p>`;
+        if (noteEl) noteEl.innerText = '';
+        return;
+      }
+
+      const sorted = [...rankable].sort((a, b) => {
+        const ia = info(a), ib = info(b);
+        if (ib.rank !== ia.rank) return ib.rank - ia.rank;
+        if (ib.legendPoints !== ia.legendPoints) return ib.legendPoints - ia.legendPoints;
+        if (ib.gauge !== ia.gauge) return ib.gauge - ia.gauge;
+        return b.matchesCount - a.matchesCount;
+      });
+      const ranked = selectTopByDenseRank(sorted, (a, b) => {
+        const ia = info(a), ib = info(b);
+        return ia.rank === ib.rank && ia.legendPoints === ib.legendPoints && ia.gauge === ib.gauge;
+      }, 3);
+
+      renderRankGroupCards(container, ranked, (player) => {
+        const i = info(player);
+        const idx = Math.max(0, Math.min(RANK_KEYS.length - 1, Math.round(i.rank)));
+        const isLegend = idx >= RANK_KEYS.length - 1;
+        return `
+          <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px] flex items-center gap-1.5">
+            <img src="${RANK_BADGE_BASE}${RANK_KEYS[idx]}.webp" alt="" class="w-6 h-6 shrink-0">
+            <div class="text-left">
+              <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">段位</span>
+              <span class="font-black text-amber-200 text-xs">${RANK_NAMES[idx]}</span>
+            </div>
+          </div>
+          <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+            <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">${isLegend ? 'LP' : 'ゲージ'}</span>
+            <span class="font-mono font-bold text-white text-sm">${isLegend ? i.legendPoints : i.gauge + '/7'}</span>
+          </div>
+        `;
+      });
+      if (noteEl) noteEl.innerText = '同じ段位なら レジェンドポイント → 七色ゲージ の多い順';
+    }
+
+    // ── 不具合報告の件数（続き312、ユーザー要望「個別の不具合報告件数も記録してもいいかも」）───
+    // 報告の中身（so7_bug_reports）は管理者しか読めないが、**件数だけ**は誰でも見られるように
+    // デジタル版側のSQLへ集計RPC so7_get_bug_report_counts() を用意した（user_idごとの件数のみ。
+    // 本文・ログは一切返さない）。SQL未実行の環境では取得に失敗するだけで、表示が出ないだけになる。
+    let bugReportCountByUserId = {};
+    async function loadBugReportCounts() {
+      try {
+        const { data, error } = await supabaseClient.rpc('so7_get_bug_report_counts');
+        if (error) throw error;
+        const map = {};
+        for (const row of data || []) map[row.user_id] = row.report_count ?? 0;
+        bugReportCountByUserId = map;
+      } catch (err) {
+        bugReportCountByUserId = {}; // 未適用・未ログイン等では出さないだけ
+      }
+    }
+    function bugReportCountOf(player) {
+      const userId = player?.userId;
+      if (!userId) return 0;
+      return bugReportCountByUserId[userId] || 0;
+    }
+
     function renderTop3Ranking(approvedStatsList) {
       const container = document.getElementById('top3-ranking-container');
       container.innerHTML = "";
@@ -3334,11 +3478,22 @@
     }
 
     // プレイヤー個別カードの構築（多角的なソートロジックを搭載）
+    // 検索キーワード（続き312、ユーザー要望「プレイヤー一覧の検索」）。名前・Discord IDの部分一致。
+    let playersSearchQuery = "";
+    function changePlayersSearch() {
+      playersSearchQuery = (document.getElementById('players-search-input')?.value || '').trim().toLowerCase();
+      renderPlayersGrid(Object.values(computePlayerStats()).filter(p => p.status === 'approved'));
+    }
+
     function renderPlayersGrid(approvedStatsList) {
       const container = document.getElementById('players-grid-container');
       container.innerHTML = "";
 
-      const sorted = [...approvedStatsList];
+      const q = playersSearchQuery;
+      const sorted = [...approvedStatsList].filter(p => {
+        if (!q) return true;
+        return (p.name || '').toLowerCase().includes(q) || (p.discordId || '').toLowerCase().includes(q);
+      });
       if (playersSortKey === 'borderWinRate') {
         // ランクインボーダー(平均対戦数の50%超)を満たす人を先に、勝率ランキングと同じ優先順位で並べる
         sorted.sort((a, b) => {
@@ -3370,6 +3525,11 @@
         });
       }
 
+      if (sorted.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-8 col-span-full">「${playersSearchQuery}」に一致するプレイヤーはいません。</p>`;
+        return;
+      }
+
       sorted.forEach(player => {
         const avatarHtml = getAvatarElementHtml(player, 10);
 
@@ -3383,6 +3543,12 @@
         const hasPendingEdit = rawPlayer && rawPlayer.editPending && rawPlayer.editPending !== null;
         const pendingBadgeHtml = hasPendingEdit
           ? `<span class="ml-1.5 px-1 py-0.5 text-[8px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-200 shrink-0">編集承認待ち</span>`
+          : '';
+
+        // 不具合報告の件数（続き312）。報告してくれた人の貢献が見えるように、1件以上なら出す。
+        const bugCount = bugReportCountOf(player);
+        const bugBadgeHtml = bugCount > 0
+          ? `<span class="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold bg-rose-50 text-rose-600 rounded-full border border-rose-200 shrink-0" title="不具合報告 ${bugCount}件（デジタル版から報告してくれた回数）"><i class="fa-solid fa-bug mr-0.5"></i>${bugCount}</span>`
           : '';
 
         // ペンマーク編集ボタンは一般・管理者ともに開放
@@ -3408,6 +3574,7 @@
               <div class="flex items-center min-w-0 flex-wrap">
                 <span class="font-black text-xs text-slate-800 truncate" title="${player.name}">${player.name}</span>
                 ${editButtonHtml}
+                ${bugBadgeHtml}
                 ${pendingBadgeHtml}
               </div>
               ${discordTagHtml}
@@ -5017,7 +5184,7 @@
         renderMyStatsBar();
         // ログイン状態が変わると段位の読み取り可否も変わる（so7_ranked_players のSELECTは
         // authenticated のみ）。読み直して、データが揃っていればバッジ付きで描き直す。
-        loadRankedRanks().then(() => {
+        Promise.all([loadRankedRanks(), loadBugReportCounts()]).then(() => {
           if (players.length > 0) renderAll();
         });
         retrackStatsPresence(); // 「いま誰がいるか」の自分の表示名を更新（ゲスト→本人名）
