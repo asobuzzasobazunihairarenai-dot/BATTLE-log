@@ -1718,6 +1718,15 @@
     function trySwitchToAdmin() {
       if (currentRole === 'admin') {
         switchRole('tester');
+        autoAdminApplied = false; // 自分で降りた＝以後ログイン状態から自動で上げ直さない
+        return;
+      }
+
+      // デジタル版の管理者アカウントでログイン済みなら暗証パスワードは不要（続き305）。
+      if (typeof isAppAdminUser === 'function' && isAppAdminUser()) {
+        switchRole('admin');
+        autoAdminApplied = true;
+        if (players.length > 0) renderAll();
         return;
       }
 
@@ -4323,6 +4332,39 @@
     //    まだ無い人には、その旨と手順だけ案内する（このサイトから勝手に作らない）。
     let myAuthUser = null;
 
+    // ユーザー要望2026-08-28「アプリ側で管理者の場合、戦績システムでも管理者としてログイン
+    // している状態になるようにしてください」。デジタル版の管理者判定（src/online.js の
+    // ADMIN_EMAILS）とまったく同じメールアドレスで判定し、一致したら暗証パスワードを聞かずに
+    // 管理者ロールへ自動で切り替える。
+    // 注意: これはデジタル版と同じ「表示の出し分け」レベルのクライアント判定で、厳密な
+    // アクセス制限ではない（本当の制限はSupabase側の関数やRLSが担う）。ただし、これまでの
+    // 共有パスワード（初期値0000で、画面にその案内まで出ている）より弱くはならない。
+    const APP_ADMIN_EMAILS = ["asobuzz.asobazunihairarenai@gmail.com", "shogoshogo0929@gmail.com"];
+    let autoAdminApplied = false; // 自動で管理者にしたかどうか（パスワードで入った人を降格させないため）
+
+    function isAppAdminUser() {
+      const email = (myAuthUser?.email || "").trim().toLowerCase();
+      return !!email && APP_ADMIN_EMAILS.includes(email);
+    }
+
+    // ログイン状態が変わるたびに管理者ロールを合わせる。ログアウトしたら（自動で上げた場合だけ）
+    // 一般テスターへ戻す＝権限が残りっぱなしにならないようにする。
+    function syncAdminRoleFromLogin() {
+      if (isAppAdminUser()) {
+        if (currentRole !== 'admin') {
+          switchRole('admin');
+          autoAdminApplied = true;
+          if (players.length > 0) renderAll(); // 既にデータを読み込み済みなら管理者向けに描き直す
+        }
+        return;
+      }
+      if (currentRole === 'admin' && autoAdminApplied) {
+        switchRole('tester');
+        autoAdminApplied = false;
+        if (players.length > 0) renderAll();
+      }
+    }
+
     function statsAuthRedirectUrl() {
       // ハッシュやクエリを持ち込むとOAuthの戻り先が汚れるため、素のページURLへ戻す。
       return location.origin + location.pathname;
@@ -4339,8 +4381,10 @@
       // ログイン/ログアウト・別タブでの状態変化にも追従する。
       supabaseClient.auth.onAuthStateChange((_event, session) => {
         myAuthUser = session?.user ?? null;
+        syncAdminRoleFromLogin();
         renderMyStatsBar();
       });
+      syncAdminRoleFromLogin();
       renderMyStatsBar();
     }
 
@@ -4450,8 +4494,13 @@
 
       const me = findMyStatsPlayer();
       if (!me) {
+        // 管理者アカウントは戦績プレイヤーと連携していないことも多いので、こちらにも表示する。
+        const adminOnlyNote = isAppAdminUser()
+          ? `<span class="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded px-1.5 py-0.5 mr-2"><i class="fa-solid fa-user-shield mr-1"></i>管理者としてログイン中</span>`
+          : '';
         bar.innerHTML = `
           <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
+            ${adminOnlyNote}
             <span class="text-[11px] text-slate-300">
               ログイン中ですが、このアカウントはまだ戦績のプレイヤーと連携されていません。
               <span class="text-slate-400">デジタル版でオンライン対戦をすると自動的に登録・連携されます（既に登録済みの方はデジタル版のマイページから連携できます）。</span>
@@ -4486,13 +4535,17 @@
       const pendingNote = myStats.status === 'approved'
         ? ''
         : `<span class="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded px-1.5 py-0.5 ml-2">承認待ち</span>`;
+      // デジタル版の管理者アカウントでログインしている時は、管理者として入っていることを明示する。
+      const adminNote = isAppAdminUser()
+        ? `<span class="text-[9px] bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded px-1.5 py-0.5 ml-2"><i class="fa-solid fa-user-shield mr-1"></i>管理者</span>`
+        : '';
 
       bar.innerHTML = `
         <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4 flex-wrap">
           <div class="shrink-0">${avatarHtml}</div>
           <div class="min-w-0">
             <div class="text-white font-bold text-sm truncate flex items-center">
-              ${myStats.name}${pendingNote}
+              ${myStats.name}${pendingNote}${adminNote}
             </div>
             <div class="text-[10px] text-slate-400 mt-0.5">
               <i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i>${tier.label}
