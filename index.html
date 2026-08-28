@@ -1704,7 +1704,50 @@
 
     async function loadData() {
       await seedInitialDataIfEmpty();
-      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB(), loadGameCommentsFromDB(), loadAdminNewsFromDB(), loadMatchFeedbackRepliesFromDB()]);
+      await Promise.all([loadPlayersFromDB(), loadMatchesFromDB(), loadAdminPasswordFromDB(), loadGameCommentsFromDB(), loadAdminNewsFromDB(), loadMatchFeedbackRepliesFromDB(), loadRankedRanks()]);
+    }
+
+    // ── ランク戦の段位バッジ（続き306、ユーザー要望2026-08-28「戦績システムにもランクバッジを
+    //    追加したい。アバターの右下に少しアバターに被るように」）─────────────────────
+    // ランクはデジタル版のランク戦（フリーマッチ）の段位。同じSupabaseプロジェクトの
+    // so7_ranked_players に入っていて、SELECTは「ランクは公開情報（相手のランク表示・ランキング）」
+    // という方針で全員に許可されている（supabase_setup_so7.sql参照）。ただし許可対象は
+    // authenticated なので、未ログインの閲覧者には読めない＝バッジは出ない（そこは仕様として許容）。
+    // バッジ画像はデジタル版のリポジトリにある静止webp。両サイトは同じGitHub Pagesのオリジンなので
+    // 絶対URLで直接参照できる。
+    const RANK_BADGE_BASE = "https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/assets/rank-badges/";
+    const RANK_KEYS = ["bronze", "silver", "gold", "platinum", "diamond", "master", "legend"];
+    const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
+    let rankedRankByUserId = {}; // auth.users.id -> rank(0..6)
+
+    async function loadRankedRanks() {
+      try {
+        const { data, error } = await supabaseClient.from('so7_ranked_players').select('user_id, rank');
+        if (error) throw error;
+        const map = {};
+        for (const row of data || []) map[row.user_id] = row.rank ?? 0;
+        rankedRankByUserId = map;
+      } catch (err) {
+        // 未ログイン（authenticated でない）・ランク用SQL未適用などでは読めない。バッジを出さないだけ。
+        rankedRankByUserId = {};
+      }
+    }
+
+    // アバターの右下に少し重ねて載せる段位バッジ。sizePx はアバターの直径。
+    // 極小のチップ（対戦履歴の参加者チップ=20px）には載せない——潰れて汚くなるため。
+    function buildRankBadgeOverlayHtml(player, sizePx) {
+      if (sizePx < 28) return '';
+      const userId = player.userId || players.find(p => p.id === player.id)?.userId;
+      if (!userId) return '';
+      const raw = rankedRankByUserId[userId];
+      if (raw === undefined || raw === null) return '';
+      const idx = Math.max(0, Math.min(RANK_KEYS.length - 1, Math.round(Number(raw) || 0)));
+      const badgePx = Math.max(14, Math.round(sizePx * 0.46));
+      const offset = Math.round(badgePx * 0.22); // この分だけアバターに食い込ませる
+      return `<img src="${RANK_BADGE_BASE}${RANK_KEYS[idx]}.webp" alt="${RANK_NAMES[idx]}"
+        title="ランク戦の段位: ${RANK_NAMES[idx]}" loading="lazy"
+        class="absolute pointer-events-none drop-shadow-md"
+        style="width:${badgePx}px; height:${badgePx}px; right:-${offset}px; bottom:-${offset}px;">`;
     }
 
     function executeAppConfirm() {
@@ -1862,6 +1905,8 @@
           matchesCount: p.seedMatchesCount || 0,
           winsCount: p.seedWinsCount || 0,
           winRate: 0,
+          // 段位バッジ（buildRankBadgeOverlayHtml）が so7_ranked_players を引くのに使う。
+          userId: p.userId || null,
           isStaff: p.isStaff || false,
           // プロフィール編集の申請データ(editPending)をここに格納してレンダリングに渡す
           editPending: p.editPending || null
@@ -3044,6 +3089,7 @@
       return `
         <div class="relative shrink-0" title="${tooltip}">
           ${renderAvatarRingHtml(sizePx, tier, avatarImgHtml)}
+          ${buildRankBadgeOverlayHtml(player, sizePx)}
         </div>
       `;
     }
@@ -4383,6 +4429,11 @@
         myAuthUser = session?.user ?? null;
         syncAdminRoleFromLogin();
         renderMyStatsBar();
+        // ログイン状態が変わると段位の読み取り可否も変わる（so7_ranked_players のSELECTは
+        // authenticated のみ）。読み直して、データが揃っていればバッジ付きで描き直す。
+        loadRankedRanks().then(() => {
+          if (players.length > 0) renderAll();
+        });
       });
       syncAdminRoleFromLogin();
       renderMyStatsBar();
