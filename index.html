@@ -1417,7 +1417,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260828-204407";
+    const BUILD_VERSION = "20260828-205123";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -2108,22 +2108,22 @@
     // 解禁の判定はデジタル版（src/titles.js）が持ち、こちらは保存されたキーを名前に直すだけ。
     // **片方の定義を直したらもう片方も直すこと**（getTierInfo等と同じ複製の約束）。
     const TITLE_LABELS = {
-      'debut': '🌱 初陣',
-      'regular': '🎲 常連',
-      'veteran': '⚔️ 歴戦',
-      'pillar': '🏛️ 不動の柱',
-      'first-win': '✨ 初勝利',
-      'winner5': '🔥 五つの勝ち星',
-      'winner10': '👑 十の勝ち星',
-      'sharp': '🎯 冴えた読み',
-      'dominant': '💠 盤上の支配者',
-      'ranked-debut': '🎖️ 挑戦者',
-      'rank-gold': '🥇 黄金の段位',
-      'rank-diamond': '💎 宝石の段位',
-      'rank-legend': '🌈 伝説',
-      'reporter1': '🐛 バグ発見者',
-      'reporter5': '🔍 バグハンター',
-      'reporter10': '🛡️ セブンの守護者',
+      'debut': '🌱 目覚めし者',
+      'regular': '🧭 盤上の旅人',
+      'veteran': '⚔️ 歴戦の求色者',
+      'pillar': '🏛️ ファルベンドの古豪',
+      'first-win': '✨ 最初の輝き',
+      'winner5': '🔥 輝きを取り戻す者',
+      'winner10': '👑 色を統べる者',
+      'sharp': '🎯 均衡を制する者',
+      'dominant': '💠 具現の担い手',
+      'ranked-debut': '🎖️ 標を掲げし者',
+      'rank-gold': '🥇 黄金の使者',
+      'rank-diamond': '💎 煌めきの継承者',
+      'rank-legend': '🌈 七色の伝説',
+      'reporter1': '🐛 綻びを見つけし者',
+      'reporter5': '🔍 世界を繕う者',
+      'reporter10': '🛡️ ファルベンドの守り手',
     };
     function titleLabelOf(player) {
       const key = player?.titleKey;
