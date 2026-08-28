@@ -1165,7 +1165,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "202608110031";
+    const BUILD_VERSION = "202608281050";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -3423,7 +3423,7 @@
             await mergeStatsPlayers(sourceId, targetId);
             await loadData();
             renderAll();
-            showAppWarningModal('プレイヤーの統合が完了しました。');
+            showToast('プレイヤーの統合が完了しました。');
           } catch (err) {
             logDebugEntry(err);
             showAppWarningModal('統合中にエラーが発生しました。もう一度お試しください。');
