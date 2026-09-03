@@ -1417,7 +1417,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260828-215257";
+    const BUILD_VERSION = "20260904-010750";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -2147,22 +2147,22 @@
     }
 
     const TITLE_LABELS = {
-      'debut': '🌱 目覚めし者',
-      'regular': '🧭 盤上の旅人',
-      'veteran': '⚔️ 歴戦の求色者',
-      'pillar': '🏛️ ファルベンドの古豪',
-      'first-win': '✨ 最初の輝き',
-      'winner5': '🔥 輝きを取り戻す者',
-      'winner10': '👑 色を統べる者',
-      'sharp': '🎯 均衡を制する者',
-      'dominant': '💠 具現の担い手',
-      'ranked-debut': '🎖️ 標を掲げし者',
-      'rank-gold': '🥇 黄金の使者',
-      'rank-diamond': '💎 煌めきの継承者',
-      'rank-legend': '🌈 七色の伝説',
-      'reporter1': '🐛 綻びを見つけし者',
-      'reporter5': '🔍 世界を繕う者',
-      'reporter10': '🛡️ ファルベンドの守り手',
+      'debut': '目覚めし者',
+      'regular': '盤上の旅人',
+      'veteran': '歴戦の求色者',
+      'pillar': 'ファルベンドの古豪',
+      'first-win': '最初の輝き',
+      'winner5': '輝きを取り戻す者',
+      'winner10': '色を統べる者',
+      'sharp': '均衡を制する者',
+      'dominant': '具現の担い手',
+      'ranked-debut': '標を掲げし者',
+      'rank-gold': '黄金の使者',
+      'rank-diamond': '煌めきの継承者',
+      'rank-legend': '七色の伝説',
+      'reporter1': '綻びを見つけし者',
+      'reporter5': '世界を繕う者',
+      'reporter10': 'ファルベンドの守り手',
     };
     function titleLabelOf(player) {
       const key = player?.titleKey;
@@ -3390,7 +3390,11 @@
       container.innerHTML = "";
 
       const info = (p) => (p.userId ? rankedRankByUserId[p.userId] : null);
-      const rankable = approvedStatsList.filter(p => !p.isStaff && info(p));
+      // ユーザー要望 2026-09-04:「ブロンズのゲージ０はランク除外」。so7_ranked_players の行は
+      // ランク戦のキューに入った時点で作られるため、ブロンズ(rank 0)・ゲージ0＝実質「まだ1勝も
+      // していない」人がランキングに並んでしまっていた。これを対象外にする。
+      const isUnranked = (i) => (i.rank ?? 0) <= 0 && (i.gauge ?? 0) <= 0 && (i.legendPoints ?? 0) <= 0;
+      const rankable = approvedStatsList.filter(p => !p.isStaff && info(p) && !isUnranked(info(p)));
       if (rankable.length === 0) {
         container.innerHTML = `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">${
           myAuthUser ? 'まだランク戦（フリーマッチ）の記録があるプレイヤーがいません。' : 'ログインすると段位ランキングが表示されます。'
@@ -3429,7 +3433,7 @@
           </div>
         `;
       });
-      if (noteEl) noteEl.innerText = '同じ段位なら レジェンドポイント → 七色ゲージ の多い順';
+      if (noteEl) noteEl.innerText = '同じ段位なら レジェンドポイント → 七色ゲージ の多い順（ブロンズ ゲージ0 は対象外）';
     }
 
     // ── 不具合報告の件数（続き312、ユーザー要望「個別の不具合報告件数も記録してもいいかも」）───
