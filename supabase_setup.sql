@@ -93,19 +93,31 @@ end $$;
 
 -- 追加修正: Storageバケット(avatars, match-proofs)へのアップロードを許可するポリシー
 -- (バケットの「Public」設定は閲覧のみを許可するもので、アップロードには別途ポリシーが必要なため)
-drop policy if exists "avatars_insert" on storage.objects;
-create policy "avatars_insert" on storage.objects for insert
-  with check (bucket_id = 'avatars');
-drop policy if exists "avatars_select" on storage.objects;
-create policy "avatars_select" on storage.objects for select
-  using (bucket_id = 'avatars');
+--
+-- 【このファイルは全文コピペで実行して安全にしてある】storage.objects は
+-- supabase_storage_admin が持ち主なので、プロジェクトによっては SQL Editor から
+-- ポリシーを触れず "must be owner of table objects" で失敗する。SQL Editor は
+-- **1つでもエラーが出るとそこで止まり、以降の文が反映されない**ため、この部分だけ
+-- 囲って「失敗しても先へ進む」ようにしてある（デジタル版の supabase_setup_so7.sql と同じ作法）。
+-- 失敗した場合は、Supabaseダッシュボードの Storage 画面からポリシーを作れば同じことができる。
+do $
+begin
+  drop policy if exists "avatars_insert" on storage.objects;
+  create policy "avatars_insert" on storage.objects for insert
+    with check (bucket_id = 'avatars');
+  drop policy if exists "avatars_select" on storage.objects;
+  create policy "avatars_select" on storage.objects for select
+    using (bucket_id = 'avatars');
 
-drop policy if exists "match_proofs_insert" on storage.objects;
-create policy "match_proofs_insert" on storage.objects for insert
-  with check (bucket_id = 'match-proofs');
-drop policy if exists "match_proofs_select" on storage.objects;
-create policy "match_proofs_select" on storage.objects for select
-  using (bucket_id = 'match-proofs');
+  drop policy if exists "match_proofs_insert" on storage.objects;
+  create policy "match_proofs_insert" on storage.objects for insert
+    with check (bucket_id = 'match-proofs');
+  drop policy if exists "match_proofs_select" on storage.objects;
+  create policy "match_proofs_select" on storage.objects for select
+    using (bucket_id = 'match-proofs');
+exception when others then
+  raise notice 'storage.objects のポリシーは設定できませんでした（権限不足）。Storage画面から設定してください: %', sqlerrm;
+end $;
 
 -- 追加修正: 戦績申請に「感想・フィードバック」コメント欄を追加
 alter table matches add column if not exists feedback text default '';
