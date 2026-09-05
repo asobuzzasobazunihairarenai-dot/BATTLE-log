@@ -1417,7 +1417,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260904-010750";
+    const BUILD_VERSION = "20260905-095609";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1897,7 +1897,7 @@
 
     // --- アクセスログ ---
     // タブを開いている間は1回だけ記録する(リロード連打で水増しされないように)
-    function logVisitIfNeeded() {
+    async function logVisitIfNeeded() {
       if (sessionStorage.getItem('7shades_visit_logged')) return;
       sessionStorage.setItem('7shades_visit_logged', '1');
 
@@ -1907,13 +1907,32 @@
         localStorage.setItem('7shades_visitor_id', visitorId);
       }
 
-      supabaseClient.from('page_visits').insert({
+      // ユーザー要望2026-09-05「直近のアクセスにプレイヤー名を載せたい」。visitor_id は
+      // 端末ごとのランダムな文字列なので誰か分からない。ログイン中ならアカウントも一緒に
+      // 記録しておき、表示時に players.user_id と突き合わせて名前を出す。
+      let userId = null;
+      try {
+        const { data } = await supabaseClient.auth.getUser();
+        userId = data?.user?.id ?? null;
+      } catch (e) { /* 未ログインでも記録自体は続ける */ }
+
+      const row = {
         id: 'pv_' + Date.now() + '_' + Math.random().toString(36).slice(2),
         visitor_id: visitorId,
         visited_at: Date.now()
-      }).then(({ error }) => {
-        if (error) logDebugEntry(error);
-      });
+      };
+      const { error } = await supabaseClient.from('page_visits').insert({ ...row, user_id: userId });
+      if (error) {
+        // user_id 列がまだ無い環境（SQL未実行）でも、アクセス記録そのものは落とさない。
+        logDebugEntry(error);
+        const retry = await supabaseClient.from('page_visits').insert(row);
+        if (retry.error) logDebugEntry(retry.error);
+      }
+    }
+
+    // プレイヤー名は本人が自由に入力するので、HTMLへ差し込む前に無害化する。
+    function escapeHtml(text) {
+      return String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     }
 
     // 管理者コンソール向けのアクセス統計を取得して表示する
@@ -1923,18 +1942,30 @@
       const recentEl = document.getElementById('visit-recent-list');
       if (!totalEl) return;
 
-      const { data, error } = await supabaseClient.from('page_visits').select('visitor_id, visited_at').order('visited_at', { ascending: false });
+      // user_id 列がまだ無い環境でも動くよう、失敗したら列を外して読み直す。
+      let { data, error } = await supabaseClient.from('page_visits').select('visitor_id, visited_at, user_id').order('visited_at', { ascending: false });
       if (error) {
         logDebugEntry(error);
-        return;
+        ({ data, error } = await supabaseClient.from('page_visits').select('visitor_id, visited_at').order('visited_at', { ascending: false }));
+        if (error) { logDebugEntry(error); return; }
       }
 
       totalEl.innerText = data.length;
       uniqueEl.innerText = new Set(data.map(v => v.visitor_id)).size;
 
+      // アカウント -> プレイヤー名。players は誰でも読めるので追加の仕組みは要らない。
+      const nameByUserId = new Map();
+      for (const p of players) {
+        if (p.userId) nameByUserId.set(p.userId, p.name);
+      }
       recentEl.innerHTML = data.slice(0, 10).map(v => {
         const d = new Date(v.visited_at);
-        return `<div class="text-[10px] text-slate-500 font-mono">${d.toLocaleString('ja-JP')}</div>`;
+        const name = v.user_id ? (nameByUserId.get(v.user_id) || 'ログイン中（プレイヤー未連携）') : 'ゲスト（未ログイン）';
+        const known = v.user_id && nameByUserId.has(v.user_id);
+        return `<div class="text-[10px] font-mono flex items-center justify-between gap-2">
+          <span class="${known ? 'text-slate-700 font-bold' : 'text-slate-400'} truncate">${escapeHtml(name)}</span>
+          <span class="text-slate-500 shrink-0">${d.toLocaleString('ja-JP')}</span>
+        </div>`;
       }).join('') || '<div class="text-[10px] text-slate-400 italic">まだアクセスがありません。</div>';
     }
 

@@ -233,3 +233,11 @@ create policy "game_comments_update" on game_comments for update using (true);
 -- players は全員が読める（players_select using(true)）ので、選んだ称号のキーはこちらに持たせる。
 -- 解禁状況そのものは保存しない（その時々の戦績から毎回計算する。src/titles.js のコメント参照）。
 alter table players add column if not exists title_key text;
+
+-- 追加(2026-09-05): 管理者コンソールの「直近のアクセス」にプレイヤー名を出す。
+-- page_visits は端末ごとのランダムな visitor_id しか持っておらず「誰が見に来たか」が
+-- 分からなかった。ログイン中ならアカウント(auth.users.id)も一緒に記録しておき、
+-- 表示時に players.user_id と突き合わせて名前を出す（未ログインは「ゲスト」と表示）。
+-- 列が無い環境でもアクセス記録自体は落ちないようクライアント側で退避してあるので、
+-- 実行するまでは今までどおり日時だけが並ぶ。
+alter table page_visits add column if not exists user_id uuid;
