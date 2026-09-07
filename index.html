@@ -307,7 +307,7 @@
     </a>
 
     <!-- デジタルアプリ版テストプレイへの導線 -->
-    <a href="https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/20 transition">
+    <a href="https://seven.asobuzz.net" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/20 transition">
       <i class="fa-solid fa-mobile-screen-button"></i>
       7 SHADES OF S:EVENリメイク（開発中）のデジタルアプリ版をテストプレイする
       <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
@@ -1417,7 +1417,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260905-100304";
+    const BUILD_VERSION = "20260907-224541";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -2113,7 +2113,7 @@
     // authenticated なので、未ログインの閲覧者には読めない＝バッジは出ない（そこは仕様として許容）。
     // バッジ画像はデジタル版のリポジトリにある静止webp。両サイトは同じGitHub Pagesのオリジンなので
     // 絶対URLで直接参照できる。
-    const RANK_BADGE_BASE = "https://asobuzzasobazunihairarenai-dot.github.io/7-SHADES-OF-S-EVEN-remake/assets/rank-badges/";
+    const RANK_BADGE_BASE = "https://seven.asobuzz.net/assets/rank-badges/";
     const RANK_KEYS = ["bronze", "silver", "gold", "platinum", "diamond", "master", "legend"];
     const RANK_NAMES = ["ブロンズ", "シルバー", "ゴールド", "プラチナ", "ダイヤモンド", "マスター", "レジェンド"];
     let rankedRankByUserId = {}; // auth.users.id -> rank(0..6)
