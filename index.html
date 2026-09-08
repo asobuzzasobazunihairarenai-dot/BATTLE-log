@@ -1439,7 +1439,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260908-121510";
+    const BUILD_VERSION = "20260908-122758";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -3454,9 +3454,18 @@
       const isUnranked = (i) => (i.rank ?? 0) <= 0 && (i.gauge ?? 0) <= 0 && (i.legendPoints ?? 0) <= 0;
       const rankable = approvedStatsList.filter(p => !p.isStaff && info(p) && !isUnranked(info(p)));
       if (rankable.length === 0) {
-        container.innerHTML = `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">${
-          myAuthUser ? 'まだランク戦（フリーマッチ）の記録があるプレイヤーがいません。' : 'ログインすると段位ランキングが表示されます。'
-        }</p>`;
+        // ユーザー要望2026-09-08「（一番上に来たので）ログインしてほしい。ログインを促す感じに」。
+        // 未ログインの人が最初に目にするパネルなので、ただ「表示されません」で終わらせず、
+        // その場でログインできるボタンを出す。ログイン済みで記録が無い時は従来どおりの一文。
+        container.innerHTML = myAuthUser
+          ? `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">まだランク戦（フリーマッチ）の記録があるプレイヤーがいません。</p>`
+          : `<div class="sm:col-span-3 text-center py-6">
+               <p class="text-sm font-bold text-white/90 mb-1">段位ランキングはログインすると見られます</p>
+               <p class="text-[11px] text-white/60 mb-4">デジタル版と同じGoogleアカウントでログインすると、あなたの段位もここに載ります。</p>
+               <button onclick="loginWithGoogleForStats()" class="inline-flex items-center gap-2 bg-white text-slate-700 font-bold text-xs px-5 py-2.5 rounded-full shadow hover:bg-slate-100 transition">
+                 <i class="fa-brands fa-google text-[13px]"></i>Googleでログイン
+               </button>
+             </div>`;
         if (noteEl) noteEl.innerText = '';
         return;
       }
