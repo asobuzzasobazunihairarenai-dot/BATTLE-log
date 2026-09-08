@@ -633,26 +633,6 @@
 
             <!-- メインの目玉：総合ランキング (フル幅・強調デザイン。2つのランキングを独立したパネルに分離) -->
             <div class="space-y-4" id="ranking-capture-section">
-              <!-- 勝率ランキング パネル -->
-              <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
-                <div class="flex justify-center mb-2">
-                  <span class="text-[10px] font-black text-indigo-100 bg-white/15 px-3 py-1 rounded-full uppercase tracking-widest">🏆 勝率部門</span>
-                </div>
-                <div class="flex items-center justify-center gap-2 mb-1">
-                  <i class="fa-solid fa-crown text-amber-300 text-lg"></i>
-                  <h3 class="text-sm font-black text-white uppercase tracking-widest">勝率TOP3 ランキング</h3>
-                  <button onclick="openRankingInfoModal('winrate')" class="text-white/60 hover:text-white transition" title="ランキング参加条件について">
-                    <i class="fa-solid fa-circle-info"></i>
-                  </button>
-                </div>
-                <div class="text-center mb-4">
-                  <span id="ranking-avg-label" class="text-[10px] text-white/40 font-mono"></span>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="top3-ranking-container">
-                  <!-- JSで動的構築 -->
-                </div>
-              </div>
-
               <!-- 段位（ランク戦）ランキング パネル（続き312） -->
               <div class="bg-gradient-to-br from-indigo-500 via-indigo-800 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
                 <div class="flex justify-center mb-2">
@@ -669,6 +649,26 @@
                   <span id="rankbadge-ranking-note" class="text-[10px] text-white/40 font-mono"></span>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="rankbadge-ranking-container">
+                  <!-- JSで動的構築 -->
+                </div>
+              </div>
+
+              <!-- 勝率ランキング パネル -->
+              <div class="bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
+                <div class="flex justify-center mb-2">
+                  <span class="text-[10px] font-black text-indigo-100 bg-white/15 px-3 py-1 rounded-full uppercase tracking-widest">🏆 勝率部門</span>
+                </div>
+                <div class="flex items-center justify-center gap-2 mb-1">
+                  <i class="fa-solid fa-crown text-amber-300 text-lg"></i>
+                  <h3 class="text-sm font-black text-white uppercase tracking-widest">勝率TOP3 ランキング</h3>
+                  <button onclick="openRankingInfoModal('winrate')" class="text-white/60 hover:text-white transition" title="ランキング参加条件について">
+                    <i class="fa-solid fa-circle-info"></i>
+                  </button>
+                </div>
+                <div class="text-center mb-4">
+                  <span id="ranking-avg-label" class="text-[10px] text-white/40 font-mono"></span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="top3-ranking-container">
                   <!-- JSで動的構築 -->
                 </div>
               </div>
@@ -703,6 +703,28 @@
                   </button>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="wincount-ranking-container">
+                  <!-- JSで動的構築 -->
+                </div>
+              </div>
+
+              <!-- 不具合報告ランキング パネル（ユーザー要望2026-09-08）。勝ち負けの部門ではなく、
+                   テストに協力してくれた人への感謝の部門なので一番下に置く。件数は
+                   so7_get_bug_report_counts()（件数だけを返すRPC。本文・ログは一切返らない）。 -->
+              <div class="bg-gradient-to-br from-rose-600 via-rose-800 to-slate-900 rounded-2xl shadow-lg p-5 sm:p-6">
+                <div class="flex justify-center mb-2">
+                  <span class="text-[10px] font-black text-rose-100 bg-white/15 px-3 py-1 rounded-full uppercase tracking-widest">🐛 不具合報告部門</span>
+                </div>
+                <div class="flex items-center justify-center gap-2 mb-1">
+                  <i class="fa-solid fa-bug text-rose-300 text-lg"></i>
+                  <h3 class="text-sm font-black text-white uppercase tracking-widest">不具合報告ランキング TOP3</h3>
+                  <button onclick="openRankingInfoModal('bugreport')" class="text-white/60 hover:text-white transition" title="不具合報告ランキングについて">
+                    <i class="fa-solid fa-circle-info"></i>
+                  </button>
+                </div>
+                <div class="text-center mb-4">
+                  <span id="bugreport-ranking-note" class="text-[10px] text-white/40 font-mono"></span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="bugreport-ranking-container">
                   <!-- JSで動的構築 -->
                 </div>
               </div>
@@ -1417,7 +1439,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260907-224541";
+    const BUILD_VERSION = "20260908-121510";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -1627,6 +1649,10 @@
       } else if (type === 'rankbadge') {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>段位ランキングについて`;
         descEl.innerHTML = `デジタル版の<b>ランク戦（フリーマッチ）</b>で上がる段位（ブロンズ〜レジェンド）のランキングです。この戦績サイトの対戦数・勝率とは別のもので、ランク戦を遊んだ人だけが対象になります。<br><br><b>同順位の決め方:</b> ①段位 → ②レジェンドポイント → ③七色ゲージ → ④対戦数 の順で比較します。<br><br>※段位はログインした人だけが見られる情報のため、ログインしていない間は表示されません。`;
+        detailEl.classList.add('hidden');
+      } else if (type === 'bugreport') {
+        titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>不具合報告ランキングについて`;
+        descEl.innerHTML = `デジタル版の「不具合を報告する」から送ってくれた<b>件数</b>のランキングです。勝ち負けの部門ではなく、テストに協力してくれた方への<b>感謝の部門</b>です。<br><br><b>同順位の決め方:</b> ①報告件数 → ②対戦数 の順で比較し、どちらも同じ場合は同順位として併記します。<br><br>※集計しているのは<b>件数だけ</b>です。報告の内容・画面の記録・スクリーンショットは、この戦績サイトからは一切見られません。<br>※件数はログインした方だけが見られる情報のため、ログインしていない間は表示されません。`;
         detailEl.classList.add('hidden');
       } else if (type === 'wincount') {
         titleEl.innerHTML = `<i class="fa-solid fa-circle-info mr-2 text-indigo-600"></i>勝利数ランキングについて`;
@@ -2523,10 +2549,11 @@
       // ダッシュボードに表示するのは 'approved' (承認済み) プレイヤーのみ
       const approvedStatsList = statsList.filter(p => p.status === 'approved');
 
+      renderRankBadgeRanking(approvedStatsList); // 段位を一番上に出す（ユーザー要望2026-09-08）
       renderTop3Ranking(approvedStatsList);
-      renderRankBadgeRanking(approvedStatsList);
       renderMatchCountRanking(approvedStatsList);
       renderWinCountRanking(approvedStatsList);
+      renderBugReportRanking(approvedStatsList);
       renderPlayersGrid(approvedStatsList);
 
       // メンバー選択画面（一般用）には、承認待ちプレイヤーも含めて表示
@@ -3539,6 +3566,46 @@
         <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
           <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">勝利</span>
           <span class="font-mono font-bold text-white text-sm">${player.winsCount}</span>
+        </div>
+      `);
+    }
+
+    // 不具合報告ランキング TOP3（ユーザー要望2026-09-08）。勝ち負けではなく「テストへの協力」の部門。
+    // 件数は so7_get_bug_report_counts()（件数だけを返すRPC。本文・ログ・スクリーンショットは一切
+    // 返らない）。この RPC は authenticated 限定なので、**ログインしていないと0件になる**——
+    // その時は「まだありません」ではなく理由を出す（誰も報告していない、と誤解させないため）。
+    // 運営枠(isStaff)は他のランキングと同じく対象外（開発側が自分の報告で上位を占めないように）。
+    function renderBugReportRanking(approvedStatsList) {
+      const container = document.getElementById('bugreport-ranking-container');
+      const noteEl = document.getElementById('bugreport-ranking-note');
+      if (!container) return;
+      container.innerHTML = "";
+
+      const loaded = Object.keys(bugReportCountByUserId).length > 0;
+      if (noteEl) noteEl.textContent = loaded ? "" : "件数はログインすると表示されます";
+
+      // 順位: 報告件数 → 対戦数 の順で比較し、どちらも同じなら同順位として併記する。
+      const withCount = approvedStatsList
+        .filter((pl) => !pl.isStaff)
+        .map((pl) => ({ ...pl, bugCount: bugReportCountOf(pl) }))
+        .filter((pl) => pl.bugCount > 0)
+        .sort((a, b) => (b.bugCount !== a.bugCount ? b.bugCount - a.bugCount : b.matchesCount - a.matchesCount));
+
+      const ranked = selectTopByDenseRank(withCount, (a, b) => a.bugCount === b.bugCount && a.matchesCount === b.matchesCount, 3);
+
+      if (ranked.length === 0) {
+        container.innerHTML = `<p class="text-xs text-white/60 italic text-center py-8 sm:col-span-3">まだ不具合報告はありません。</p>`;
+        return;
+      }
+
+      renderRankGroupCards(container, ranked, (player) => `
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">報告</span>
+          <span class="font-mono font-black text-rose-200 text-sm">${player.bugCount}件</span>
+        </div>
+        <div class="bg-white/15 rounded-lg px-2.5 py-1.5 min-w-[54px]">
+          <span class="text-[8px] text-white/70 block font-bold leading-none mb-0.5">対戦</span>
+          <span class="font-mono font-bold text-white text-sm">${player.matchesCount}</span>
         </div>
       `);
     }
