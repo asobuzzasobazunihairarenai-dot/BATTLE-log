@@ -1439,7 +1439,7 @@
     }
 
     // ビルド番号表示: コード更新のたびに、この値(年月日+時刻)を更新すること
-    const BUILD_VERSION = "20260911-114428";
+    const BUILD_VERSION = "20261012-004108";
     function updateBuildVersionLabel() {
       const el = document.getElementById('build-version-label');
       if (el) {
@@ -3174,7 +3174,9 @@
       const approvedMatches = matches.filter(m => m.status === 'approved').sort((a, b) => b.createdAt - a.createdAt);
       approvedMatches.slice(0, 3).forEach(m => {
         const winner = players.find(p => p.id === m.winnerId);
-        items.push(`🏆 ${m.date}の対戦で${winner ? winner.name : '不明'}さんが優勝！`);
+        // 勝者がゲスト（デジタル版の未登録参加者）だと winnerId は null。履歴カードと同じ出し方に揃える。
+        const wName = winner ? winner.name : ((m.guestNames || []).length ? 'ゲスト' : '不明');
+        items.push(`🏆 ${m.date}の対戦で${wName}さんが優勝！`);
       });
 
       // 直近登録者 最大3件(登録が新しい順)
@@ -4629,7 +4631,7 @@
                   <span class="text-[10px] text-slate-400 font-mono">${match.date}</span>
                 </div>
                 <div class="text-xs text-slate-700 truncate"><span class="font-bold">メンバー:</span> ${membersNames}</div>
-                <div class="text-xs text-amber-800 font-bold mt-0.5">👑 勝者: ${winner ? winner.name : '未選定'}</div>
+                <div class="text-xs text-amber-800 font-bold mt-0.5">👑 勝者: ${winner ? winner.name : ((match.guestNames || []).length ? 'ゲスト' : '未選定')}</div>
                 ${feedbackHtml}
               </div>
             </div>
@@ -4764,7 +4766,7 @@
             <td class="px-4 py-2.5 font-mono text-slate-500 whitespace-nowrap">${match.date}</td>
             <td class="px-4 py-2.5">${proofCellHtml}</td>
             <td class="px-4 py-2.5 text-slate-700 max-w-xs truncate" title="${membersNames}">${membersNames}</td>
-            <td class="px-4 py-2.5 font-black text-amber-700 whitespace-nowrap">👑 ${winner ? winner.name : "不明"}</td>
+            <td class="px-4 py-2.5 font-black text-amber-700 whitespace-nowrap">👑 ${winner ? winner.name : ((match.guestNames || []).length ? "ゲスト" : "不明")}</td>
             <td class="px-4 py-2.5 text-right whitespace-nowrap">
               <button onclick="deleteMatch('${match.id}')" class="text-rose-500 hover:text-rose-700 font-semibold text-xs ml-2" title="削除">
                 <i class="fa-solid fa-trash-can"></i>
@@ -5241,7 +5243,7 @@
 
       approvedList.forEach(match => {
         const winner = players.find(p => p.id === match.winnerId);
-        const winnerName = winner ? winner.name : "不明";
+        const winnerName = winner ? winner.name : ((match.guestNames || []).length ? "ゲスト" : "不明");
         const membersNames = match.members.map(mid => players.find(p => p.id === mid)?.name || "不明").join(" / ");
 
         csvContent += `"${match.id}","${match.date}","${membersNames}","${match.winnerId}","${winnerName}"\r\n`;

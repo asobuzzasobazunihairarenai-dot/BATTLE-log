@@ -27,7 +27,14 @@ create table if not exists matches (
   id text primary key,
   date text not null,
   members jsonb not null,       -- プレイヤーIDの配列 ["p1","p2",...]
-  winner_id text not null,
+  -- 【2026-10-12】not null を外した。デジタル版は「勝者がゲスト（プレイヤー未登録）」の
+  -- 試合を送ってくることがあり、その時 winner_id は null になる。not null のままだと
+  -- insert が 23502 で弾かれ、**その試合が参加者全員ぶんまるごと記録されなかった**
+  -- （2026-10-11 のテストで実際に1戦失われた）。表示側は winner_id が引けない時に
+  -- guest_names があれば「ゲスト」と出す。勝敗数の集計も winnerId の一致で数えるので、
+  -- null は「誰の勝ちでもない」と扱われて狂わない。
+  -- ※既存のDBには `alter table matches alter column winner_id drop not null;` を適用済み。
+  winner_id text,
   proof_image_url text default '',
   status text not null default 'pending', -- 'approved' | 'pending'
   created_at bigint not null
